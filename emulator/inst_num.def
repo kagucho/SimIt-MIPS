@@ -1,0 +1,80 @@
+/*INUM (instruction, name, number)*/
+INUM("unused",XXX_INST,0)
+INUM("nop",NOP_INST,1)
+INUM("syscall",SYSCALL_INST, 2)
+
+
+/**********Integer Instructions***********/
+
+/**Math Instructions**/
+INUM("add", ADD_INST, 3)
+INUM("addi",ADDI_INST, 4)
+INUM("addiu",ADDIU_INST, 5)
+INUM("addu",ADDU_INST, 6)
+INUM("sub", SUB_INST,7)
+INUM("subu", SUBU_INST,8)
+INUM("mult", MULT_INST,9)
+INUM("multu", MULTU_INST,10)
+INUM("div",DIV_INST,11)
+INUM("divu", DIVU_INST,12)
+
+/**Logic Instructions**/
+INUM("and", AND_INST,13)
+INUM("andi", ANDI_INST,14)
+INUM("nor", NOR_INST,15)
+INUM("or", OR_INST,16)
+INUM("ori", ORI_INST,17)
+INUM("xor", XOR_INST,18)
+INUM("xori",XORI_INST,19)
+INUM("sll", SLL_INST,20)
+INUM("sllv", SLLV_INST,21)
+INUM("srl", SRL_INST,22)
+INUM("srlv", SRLV_INST, 23)
+INUM("sra", SRA_INST, 24)
+INUM("srav", SRAV_INST,25)
+
+/**Comparison Instructions**/
+INUM("slt", SLT_INST,26)
+INUM("slti", SLTI_INST,27)
+INUM("sltiu", SLTIU_INST,28)
+INUM("sltu", SLTU_INST,29)
+
+/**Control Instructions**/
+INUM("beq", BEQ_INST,30)
+INUM("bgez", BGEZ_INST, 31)
+INUM("bgezal", BGEZAL_INST, 32)
+INUM("bgtz", BGTZ_INST, 33)
+INUM("blez", BLEZ_INST, 34)
+INUM("bltzal", BLTZAL_INST, 35)
+INUM("bltz", BLTZ_INST, 36)
+INUM("bne", BNE_INST, 37)
+INUM("j", J_INST, 38)
+INUM("jal", JAL_INST, 39)
+INUM("jalr", JALR_INST, 40)
+INUM("jr", JR_INST, 41)
+
+/**Instructions for moving data**/
+INUM("mfhi", MFHI_INST, 42)
+INUM("mflo", MFLO_INST, 43)
+INUM("mthi", MTHI_INST, 44)
+INUM("mtlo", MTLO_INST, 45)
+
+/**Load/Store Instructions**/
+INUM("lb", LB_INST, 46)
+INUM("lbu", LBU_INST, 47)
+INUM("lh", LH_INST, 48)
+INUM("lhu", LHU_INST, 49)
+INUM("lw", LW_INST, 50)
+INUM("ll", LL_INST,51)
+INUM("lwl", LWL_INST, 52)
+INUM("lwr", LWR_INST, 53)
+INUM("lui", LUI_INST, 54)
+INUM("sb", SB_INST, 55)
+INUM("sh", SH_INST, 56)
+INUM("sw", SW_INST, 57)
+INUM("sc", SC_INST, 58)
+INUM("swl", SWL_INST, 59)
+INUM("swr",SWR_INST, 60)
+
+INUM("brk",BRK_INST, 61)
+

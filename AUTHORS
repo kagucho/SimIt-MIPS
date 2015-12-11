@@ -1,0 +1,11 @@
+
+Authors:
+Wei Qin (weiqin@gmail.com)
+Joe D'Errico (jderrico3@gmail.com)
+
+
+Acknowledgements:
+
+Thanks to Gilles Mouchard for infrastructures including the elf loader,
+the memory library and the system call interpreter.
+
