@@ -1,5 +1,5 @@
 /*************************************************************************
-    Copyright (C) 2005 Joseph D'Errico, Wei Qin
+    Copyright (C) 2005-2015 Joseph D'Errico, Wei Qin, Kagucho
     See file COPYING for more information.
 
     This program is free software; you can redistribute it and/or modify    
@@ -13,6 +13,7 @@
     GNU General Public License for more details.
 *************************************************************************/
 
+#include <cstddef>
 #include <functional>
 #include "huffman.h"
 

@@ -1,5 +1,5 @@
 /*************************************************************************
-    Copyright (C) 2005 Joseph D'Errico, Wei Qin
+    Copyright (C) 2005-2015 Joseph D'Errico, Wei Qin, Kagucho
     See file COPYING for more information.
 
     This program is free software; you can redistribute it and/or modify    
@@ -917,7 +917,7 @@ void impl_c_cond_d(emulator_t *emm, target_inst_t inst)
 	bool equal;
 	bool unordered;
 
-	unordered = isnan(READ_DFP(fs)) | isnan(READ_DFP(ft));
+	unordered = std::isnan(READ_DFP(fs)) | std::isnan(READ_DFP(ft));
 	if(unordered) {
 		equal = false;
 		less = false;                                    
@@ -944,7 +944,7 @@ void impl_c_cond_s(emulator_t *emm, target_inst_t inst)
 	bool equal;
 	bool unordered;
 
-	unordered = isnan(READ_SFP(fs)) | isnan(READ_SFP(ft));
+	unordered = std::isnan(READ_SFP(fs)) | std::isnan(READ_SFP(ft));
 	if(unordered) {
 		equal = false;
 		less = false;                                    

@@ -1,5 +1,5 @@
 /*************************************************************************
-    Copyright (C) 2005 Joseph D'Errico, Wei Qin
+    Copyright (C) 2005-2015 Joseph D'Errico, Wei Qin, Kagucho
     See file COPYING for more information.
 
     This program is free software; you can redistribute it and/or modify    
@@ -32,6 +32,7 @@ namespace Sgi = ::__gnu_cxx;       // GCC 3.1 and later
 namespace Sgi = std;
 #endif
 
+#include <cstring>
 #include <string>
 #include <iostream>
 #include <vector>

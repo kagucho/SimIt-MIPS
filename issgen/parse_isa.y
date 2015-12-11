@@ -1,5 +1,5 @@
 /*************************************************************************
-    Copyright (C) 2005 Joseph D'Errico, Wei Qin
+    Copyright (C) 2005-2015 Joseph D'Errico, Wei Qin, Kagucho
     See file COPYING for more information.
 
     This program is free software; you can redistribute it and/or modify    
@@ -16,6 +16,7 @@
 
 #include <vector>
 #include <string>
+#include "cstdio"
 #include "cstdlib"
 #include "issgen.hpp"
 #include <FlexLexer.h>
@@ -52,9 +53,9 @@ extern isa_prog *isa_parser_result;
 	OP_CON_ENV *op_con_env_t;
 
 	class oper_base *oper_t;
-	vector<class oper_base *> *oper_list_t;
+	std::vector<class oper_base *> *oper_list_t;
 
-	vector<bin_code *> *code_list_t;
+	std::vector<bin_code *> *code_list_t;
 }
 
 %token TK_OP		"op"
