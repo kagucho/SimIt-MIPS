@@ -173,7 +173,7 @@ void mips_emulator::dump_instruction_counters(FILE *filename)
 	fputs("\n", filename);
 
 	fputs("Percentage interpreted : ", filename);
-	fprintf(filename, "%.2f\%\n", (double)icount*100.0/(icount+ccount));
+	fprintf(filename, "%.2f\n", (double)icount*100.0/(icount+ccount));
 }
 
 void mips_emulator::reset_instruction_counters()
