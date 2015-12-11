@@ -193,7 +193,7 @@ void DecodeTreeNode::decode(double minUtilization)
 	/* next, see how table works */
 	unsigned int minTableShift = 0, minTableBits = 0;
 	double minTableHeight = minPatternHeight;
-	double minTableRatio = 1.0;
+	//double minTableRatio = 1.0;
 	double maxTableGain =  -1e+200;
 	InstWord minTableMask;
 
@@ -271,9 +271,7 @@ void DecodeTreeNode::decode(double minUtilization)
 			minTableMask = minMask;
 			minTableShift = minShift;
 			minTableBits = numBits;
-#if DEBUG>0
-			minTableRatio = minRatio;
-#endif
+			//minTableRatio = minRatio;
 			maxTableGain = maxGain;
 			if (minTableHeight!=1.0) moveOn = true;
 		}
