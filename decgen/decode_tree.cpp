@@ -64,7 +64,7 @@ void DecodeTreeNode::decode(double minUtilization)
 	 */
 	double minPatternHeight = 1e+200;
 	double maxPatternGain = -1e+200;
-	double minPatternRatio = 1.0;
+	//double minPatternRatio = 1.0;
 	InstWord minPatternSignature = 0u;
 	InstWord minPatternMask = 0u;
 
@@ -76,7 +76,9 @@ void DecodeTreeNode::decode(double minUtilization)
 
 		moveOn = false;
 		double maxGain = -1e+200;
+#if DEBUG>0
 		double minRatio = 0.0;
+#endif
 		double minHeight = 0.0;
 		InstWord minMask;
 		InstWord minSignature;
@@ -146,7 +148,9 @@ void DecodeTreeNode::decode(double minUtilization)
 					minMask = currentMask;
 					minSignature = currentSignature;
 					minHeight = height;
+#if DEBUG>0
 					minRatio = uratio;
+#endif
 #if 0
 					cout << "***" << minMask << "***"; 
 					cout << "***" << minSignature << "***";
@@ -165,7 +169,7 @@ void DecodeTreeNode::decode(double minUtilization)
 			minPatternHeight = minHeight;
 			minPatternSignature = minSignature;
 			minPatternMask = minMask;
-			minPatternRatio = minRatio;
+			//minPatternRatio = minRatio;
 			maxPatternGain = maxGain;
 			if (minPatternHeight!=1.0) moveOn = true;
 		}
@@ -203,7 +207,9 @@ void DecodeTreeNode::decode(double minUtilization)
 
 		double minHeight = 1e+200;
 		double maxGain = -1e+200;
+#if DEBUG>0
 		double minRatio =0.0;
+#endif
 		InstWord minMask;
 		unsigned int minShift =0;
 
@@ -247,7 +253,9 @@ void DecodeTreeNode::decode(double minUtilization)
 				minHeight = height;
 				minMask = msk;
 				minShift = tableShift;
+#if DEBUG>0
 				minRatio = uratio;
+#endif
 			}
 		}
 
@@ -263,7 +271,9 @@ void DecodeTreeNode::decode(double minUtilization)
 			minTableMask = minMask;
 			minTableShift = minShift;
 			minTableBits = numBits;
+#if DEBUG>0
 			minTableRatio = minRatio;
+#endif
 			maxTableGain = maxGain;
 			if (minTableHeight!=1.0) moveOn = true;
 		}
