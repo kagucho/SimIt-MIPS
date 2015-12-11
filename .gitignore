@@ -10,3 +10,8 @@ stamp-h1
 *.a
 *.exe
 *.o
+output.0
+output.1
+requests
+traces.0
+traces.1

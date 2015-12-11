@@ -62,4 +62,5 @@ bool compute_undef(vector<DecodeEntry>& entries)
 	for (pat_it = results.begin(); pat_it!=results.end(); pat_it++) {
 		entries.push_back(pattern2entry(*pat_it));
 	}
+	return true;
 }
