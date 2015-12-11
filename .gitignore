@@ -1,0 +1,12 @@
+.deps
+Makefile
+config.*
+decgen/parse_idef.cpp
+decgen/parse_idef.h
+decgen/scan_idef.c
+jit/build_dll.hpp
+jit/build_scs
+stamp-h1
+*.a
+*.exe
+*.o
