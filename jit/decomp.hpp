@@ -12,29 +12,13 @@
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
     GNU General Public License for more details.
 *************************************************************************/
+#ifndef DECOMP_HPP
+#define DECOMP_HPP
 
-#ifndef AUTO_IMPL
-#define AUTO_IMPL
+#include "decomp_common.hpp"
+#include <cstdio>
 
-
-extern void impl_default(IMPL_FORMALS);
-
-#define impl_null impl_default
-#define _STUB_DEC(a) static void stub_##a(IMPL_FORMALS);
-
-#define _TABLE_DEF_BEGIN(a,b) static void (*table_## a [b])(IMPL_FORMALS) = {
-#define _TABLE_DEF_END };
-
-#define _STUB_ENTRY(a) static void stub_##a(IMPL_FORMALS)
-
-#define _FUNC_CALL(a) impl_##a(IMPL_ARGS)
-#define _FUNC_NAME(a) impl_##a
-#define _STUB_NAME(a) stub_##a
-#define _FUNC_DEFAULT impl_default
-
-#define _TABLE_JUMP(a,b,c) table_##a[(inst>>c)&b](IMPL_ARGS)
-#define _PATTERN_TRUE(a,b) ((inst&a)==b)
-
-#define _MAIN_DECODE_ENTRY static void decode_main(IMPL_FORMALS)
+void decomp(const char *filename, int argc, char *argv[], char *envp[],
+	emulator_t *emm, unsigned ipf, bool tocount, bool verbose);
 
 #endif

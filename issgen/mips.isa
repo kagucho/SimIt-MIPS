@@ -1,0 +1,671 @@
+/*************************************************************************
+    Copyright (C) 2005 Joseph D'Errico, Wei Qin
+    See file COPYING for more information.
+
+    This program is free software; you can redistribute it and/or modify    
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation; either version 2 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+*************************************************************************/
+
+
+field {
+rs:5;
+rd:5;
+rt:5;
+imm:16;
+ad:26;
+cc:3;
+cond:4;
+fs:5;
+ft:5;
+fd:5;
+shamt:5;
+}
+
+
+var {
+product:dword_t;
+addr:target_addr_t;
+addr2:target_addr_t;
+offr:word_t;
+offm:word_t;
+fixed_word:word_t;
+less:bool;
+equal:bool;
+unordered:bool;
+}
+
+group root {
+
+op nop(00000000000000000000000000000000){
+execute = "
+"
+}
+
+
+op add(000000:rs:rt:rd:-----100000) {
+execute = "
+	WRITE_GPR(READ_GPR($rs$) + READ_GPR($rt$), $rd$);
+	"
+}
+
+op addi(001000:rs:rt:imm) {
+execute = "
+	WRITE_GPR(READ_GPR($rs$) + (hword_t)$imm$, $rt$);
+	"
+}
+
+op addiu(001001:rs:rt:imm) {
+execute = "
+	WRITE_GPR(READ_GPR($rs$) + (hword_t)$imm$, $rt$);
+	"
+}
+
+op addu(000000:rs:rt:rd:-----100001) {
+execute = "
+	WRITE_GPR(READ_GPR($rs$) + READ_GPR($rt$), $rd$);
+	"
+}
+
+op sub(000000:rs:rt:rd:-----100010) {
+execute = "
+	WRITE_GPR(READ_GPR($rs$) - READ_GPR($rt$), $rd$);
+	"
+}
+
+op subu(000000:rs:rt:rd:-----100011) {
+execute = "
+	WRITE_GPR(READ_GPR($rs$) - READ_GPR($rt$), $rd$);
+	"
+}
+
+op mult(000000:rs:rt:----------011000) {
+execute = "
+	@product@ = ((dword_t)(word_t)READ_GPR($rs$) * (dword_t)(word_t)READ_GPR($rt$));
+	WRITE_LO((word_t)@product@);
+	WRITE_HI((word_t)(@product@>>32));
+	"
+}
+
+op multu(000000:rs:rt:----------011001) {
+execute = "
+	@product@ = ((u_dword_t)READ_GPR($rs$) * (u_dword_t)READ_GPR($rt$));
+	WRITE_LO((word_t)@product@);
+	WRITE_HI((word_t)(@product@>>32));
+	"
+}
+
+op div(000000:rs:rt:----------011010) {
+execute = "
+	WRITE_LO((word_t)READ_GPR($rs$) / (word_t)READ_GPR($rt$));
+	WRITE_HI((word_t)READ_GPR($rs$) % (word_t)READ_GPR($rt$));
+	"
+}
+
+op divu(000000:rs:rt:----------011011) {
+execute = "
+	WRITE_LO(READ_GPR($rs$) / READ_GPR($rt$));
+	WRITE_HI(READ_GPR($rs$) % READ_GPR($rt$));
+	"
+}
+
+op and(000000:rs:rt:rd:-----100100) {
+execute = "
+	WRITE_GPR(READ_GPR($rs$) & READ_GPR($rt$), $rd$);
+	"
+}
+
+op andi(001100:rs:rt:imm) {
+execute = "
+	WRITE_GPR(READ_GPR($rs$) & (u_hword_t)$imm$, $rt$);
+	"
+}
+
+op nor(000000:rs:rt:rd:-----100111) {
+execute = "
+	WRITE_GPR(~(READ_GPR($rs$) | READ_GPR($rt$)), $rd$);
+	"
+}
+
+op or(000000:rs:rt:rd:-----100101) {
+execute = "
+	WRITE_GPR(READ_GPR($rs$) | READ_GPR($rt$), $rd$);
+	"
+}
+
+op ori(001101:rs:rt:imm) {
+execute = "
+	WRITE_GPR(READ_GPR($rs$) | (u_hword_t)$imm$, $rt$);
+	"
+}
+
+op xor(000000:rs:rt:rd:-----100110) {
+execute = "
+	WRITE_GPR(READ_GPR($rs$) ^ READ_GPR($rt$), $rd$);
+	"
+}
+
+op xori(001110:rs:rt:imm) {
+execute = "
+	WRITE_GPR(READ_GPR($rs$) ^ (u_hword_t)$imm$, $rt$);
+	"
+}
+
+op sll(000000-----:rt:rd:shamt:000000) {
+execute = "
+	WRITE_GPR(READ_GPR($rt$) << $shamt$, $rd$);
+	"
+}
+
+op sllv(000000:rs:rt:rd:-----000100) {
+execute = "
+	WRITE_GPR(READ_GPR($rt$) << (0x1F&READ_GPR($rs$)), $rd$);
+	"
+}
+
+op srl(000000-----:rt:rd:shamt:000010) {
+execute = "
+	WRITE_GPR((u_word_t)READ_GPR($rt$) >> $shamt$, $rd$);
+	"
+}
+
+op srlv(000000:rs:rt:rd:-----000110) {
+execute = "
+	WRITE_GPR((u_word_t)READ_GPR($rt$) >> (0x1F&READ_GPR($rs$)), $rd$);
+	"
+}
+
+op sra(000000-----:rt:rd:shamt:000011) {
+execute = "
+	WRITE_GPR((word_t)READ_GPR($rt$) >> $shamt$, $rd$);
+	"
+}
+
+op srav(000000:rs:rt:rd:-----000111) {
+execute = "
+	WRITE_GPR((word_t)READ_GPR($rt$) >> (0x1F&READ_GPR($rs$)), $rd$);
+	"
+}
+
+op slt(000000:rs:rt:rd:-----101010) {
+execute = "
+	WRITE_GPR(((word_t)READ_GPR($rs$) < (word_t)READ_GPR($rt$)) ? 1 : 0, $rd$); 
+	"
+}
+
+op slti(001010:rs:rt:imm) {
+execute = "
+	WRITE_GPR(((word_t)READ_GPR($rs$) < (hword_t)$imm$) ? 1 : 0, $rt$); 
+	"
+}
+
+op sltiu(001011:rs:rt:imm) {
+execute = "
+	WRITE_GPR((READ_GPR($rs$) < (u_word_t)(hword_t)$imm$) ? 1 : 0, $rt$); 
+	"
+}
+
+op sltu(000000:rs:rt:rd:-----101011) {
+execute = "
+	WRITE_GPR((READ_GPR($rs$) < READ_GPR($rt$)) ? 1 : 0, $rd$); 
+	"
+}
+
+op beq(000100:rs:rt:imm) {
+condition="READ_GPR($rs$) == READ_GPR($rt$)"
+ctarget="@npc@+((hword_t)$imm$ << 2)"
+}
+
+op bgez(000001:rs:00001:imm) {
+condition="(word_t)READ_GPR($rs$) >= 0"
+ctarget="@npc@+((hword_t)$imm$ << 2)"
+}
+
+op bgezal(000001:rs:10001:imm) {
+execute="
+	WRITE_RA(@npc@+4);
+"
+condition="(word_t)READ_GPR($rs$) >= 0"
+ctarget="@npc@+((hword_t)$imm$ << 2)"
+}
+
+op bgtz(000111:rs:-----:imm) {
+condition="(word_t)READ_GPR($rs$) > 0"
+ctarget="@npc@+((hword_t)$imm$ << 2)"
+}
+
+op blez(000110:rs:-----:imm) {
+condition="(word_t)READ_GPR($rs$) <= 0"
+ctarget="@npc@+((hword_t)$imm$ << 2)"
+}
+
+op bltzal(000001:rs:10000:imm) {
+execute="
+	WRITE_RA(@npc@+4);
+"
+condition="(word_t)READ_GPR($rs$) < 0"
+ctarget="@npc@+((hword_t)$imm$ << 2)"
+}
+
+op bltz(000001:rs:00000:imm) {
+condition="(word_t)READ_GPR($rs$) < 0"
+ctarget="@npc@+((hword_t)$imm$ << 2)"
+}
+
+op bne(000101:rs:rt:imm) {
+condition="READ_GPR($rs$) != READ_GPR($rt$)"
+ctarget="@npc@+((hword_t)$imm$ << 2)"
+}
+
+op j(000010:ad) {
+ctarget="(@npc@&0xF0000000)|($ad$<<2)"
+}
+
+op jal(000011:ad) {
+execute="
+	WRITE_RA(@npc@+4);
+"
+ctarget="(@npc@&0xF0000000)|($ad$<<2)"
+}
+
+op jalr(000000:rs:---------------001001) {
+execute="
+	WRITE_RA(@npc@+4);
+"
+vtarget="READ_GPR($rs$)"
+}
+
+op jr(000000:rs:---------------001000) {
+vtarget="READ_GPR($rs$)"
+}
+
+op mfhi(000000----------:rd:-----010000) {
+execute="
+	WRITE_GPR(READ_HI(),$rd$);
+	"
+}
+
+op mflo(000000----------:rd:-----010010) {
+execute="
+	WRITE_GPR(READ_LO(),$rd$);
+	"
+}
+
+op mthi(000000:rs:---------------010001) {
+execute="
+	WRITE_HI(READ_GPR($rs$));
+	"
+}
+
+op mtlo(000000:rs:---------------010011) {
+execute="
+	WRITE_LO(READ_GPR($rs$));
+	"
+}
+
+op mfc1(01000100000:rt:fs:-----------) {
+execute = "
+	WRITE_GPR(READ_WFP($fs$), $rt$);
+	"
+}
+
+op mtc1(01000100100:rt:fs:-----------) {
+execute = "
+    WRITE_WFP(READ_GPR($rt$), $fs$); 
+	"
+}
+
+op cfc1(01000100010:rt:fs:-----------) {
+execute = "
+	if($fs$ == 31)
+		WRITE_GPR(READ_FCSR(), $rt$);
+	"
+}
+
+op ctc1(01000100110:rt:fs:-----------) {
+execute = "
+	if($fs$ == 31)
+    	WRITE_FCSR(READ_GPR($rt$)); 
+	"
+}
+
+op lb(100000:rs:rt:imm) {
+execute = "
+	WRITE_GPR((byte_t)READ_BYTE(READ_GPR($rs$)+(hword_t)$imm$), $rt$);
+	"
+}
+
+op lbu(100100:rs:rt:imm) {
+execute = "
+	WRITE_GPR((u_byte_t)READ_BYTE(READ_GPR($rs$)+(hword_t)$imm$), $rt$);
+	"
+}
+
+op lh(100001:rs:rt:imm) {
+execute = "
+	WRITE_GPR((hword_t)READ_HWORD(READ_GPR($rs$)+(hword_t)$imm$), $rt$);
+	"
+}
+
+op lhu(100101:rs:rt:imm) {
+execute = "
+	WRITE_GPR((u_hword_t)READ_HWORD(READ_GPR($rs$)+(hword_t)$imm$), $rt$);
+	"
+}
+
+op lw(100011:rs:rt:imm) {
+execute = "
+	WRITE_GPR((u_word_t)READ_WORD(READ_GPR($rs$)+(hword_t)$imm$), $rt$);
+	"
+}
+
+op lwl(100010:rs:rt:imm) {
+execute = "
+    @addr@ = (hword_t)$imm$ + READ_GPR($rs$);
+    @addr2@ = (0xFFFFFFFC)&@addr@;
+    @offr@ = (@addr@ - @addr2@+1)*8;
+    @offm@ =   ((0x00000003)&(~(@addr@ - @addr2@)))*8;
+    WRITE_GPR(((u_word_t)READ_WORD(@addr2@) << @offm@)|(((u_dword_t)0xFFFFFFFF >> @offr@) & READ_GPR($rt$)), $rt$);
+	"
+}
+
+op lwr(100110:rs:rt:imm) {
+execute = "
+      @addr@ = (hword_t)$imm$ + READ_GPR($rs$);
+      @addr2@ = (0xFFFFFFFC)&@addr@;
+      @offr@ = (((0x00000003)&(~(@addr@ - @addr2@)))+1)*8;
+      @offm@ = (@addr@ - @addr2@)*8;
+      WRITE_GPR(((u_word_t)READ_WORD(@addr2@) >> @offm@)|(((u_dword_t)0xFFFFFFFF << @offr@) & READ_GPR($rt$)), $rt$);
+	"
+}
+
+op lui(001111-----:rt:imm) {
+execute = "
+    WRITE_GPR(((u_hword_t)$imm$<<16), $rt$);
+	"
+}
+
+op sb(101000:rs:rt:imm) {
+execute = "
+	WRITE_BYTE((u_byte_t)READ_GPR($rt$), READ_GPR($rs$)+(hword_t)$imm$);
+	"
+iswrite = "1"
+}
+
+op sh(101001:rs:rt:imm) {
+execute = "
+	WRITE_HWORD((u_hword_t)READ_GPR($rt$), READ_GPR($rs$)+(hword_t)$imm$);
+	"
+iswrite = "1"
+}
+
+op sw(101011:rs:rt:imm) {
+execute = "
+	WRITE_WORD((u_word_t)READ_GPR($rt$), READ_GPR($rs$)+(hword_t)$imm$);
+	"
+iswrite = "1"
+}
+
+op swl(101010:rs:rt:imm) {
+execute = "
+      @addr@ = (hword_t)$imm$ + READ_GPR($rs$);
+      @addr2@ = (0xFFFFFFFC)&@addr@;
+      for(int i=3; @addr2@<=@addr@; i--,@addr2@++)
+      	WRITE_BYTE(((u_byte_t)(READ_GPR($rt$)>>(i*8))), @addr2@);
+	"
+iswrite = "1"
+}
+
+op swr(101110:rs:rt:imm) {
+execute = "
+      @addr@ = (hword_t)$imm$ + READ_GPR($rs$);
+      @addr2@ = (0xFFFFFFFC & @addr@)+3;
+      for(int i=0; @addr@<=@addr2@; i++,@addr@++)
+      	WRITE_BYTE(((u_byte_t)(READ_GPR($rt$)>>(i*8))), @addr@);
+	"
+iswrite = "1"
+}
+
+op lwc1(110001:rs:rt:imm) {
+execute = "
+	WRITE_WFP((word_t)READ_WORD(READ_GPR($rs$)+(hword_t)$imm$), $rt$);
+	"
+}
+
+op swc1(111001:rs:rt:imm) {
+execute = "
+	WRITE_WORD((u_word_t)READ_WFP($rt$), READ_GPR($rs$)+(hword_t)$imm$);
+	"
+iswrite = "1"
+}
+
+op ll(110000:rs:rt:imm) {
+execute = "
+	WRITE_GPR((word_t)READ_WORD(READ_GPR($rs$)+(hword_t)$imm$), $rt$);
+	"
+}
+
+op sc(111000:rs:rt:imm) {
+execute = "
+	WRITE_WORD((u_word_t)READ_GPR($rt$), READ_GPR($rs$)+(hword_t)$imm$);
+	WRITE_GPR(1,$rt$);
+	"
+iswrite = "1"
+}
+
+op brk(000000--------------------001101) {
+execute = "
+	emm->break_point();
+	"
+}
+
+op abs_d(01000110001-----:fs:fd:000101){
+execute = "
+    WRITE_DFP(fabs(READ_DFP($fs$)),$fd$);	
+	"
+}
+
+op abs_s(01000110000-----:fs:fd:000101){
+execute = "
+    WRITE_SFP(fabs(READ_SFP($fs$)),$fd$);	
+	"
+}
+
+op add_d(01000110001:ft:fs:fd:000000){
+execute = "
+	WRITE_DFP(READ_DFP($fs$)+READ_DFP($ft$),$fd$);  
+	"
+}
+
+op add_s(01000110000:ft:fs:fd:000000){
+execute = "
+	WRITE_SFP(READ_SFP($fs$)+READ_SFP($ft$),$fd$);  
+	"
+}
+
+op cvt_d_s(01000110000-----:fs:fd:100001){
+execute = "
+	WRITE_DFP((double)READ_SFP($fs$),$fd$);
+	"
+}
+
+op cvt_d_w(01000110100-----:fs:fd:100001){
+execute = "
+	WRITE_DFP((double)READ_WFP($fs$),$fd$);
+	"
+}
+
+op cvt_s_d(01000110001-----:fs:fd:100000){
+execute = "
+	WRITE_SFP((spfloat_t)READ_DFP($fs$),$fd$);
+	"
+}
+
+op cvt_s_w(01000110100-----:fs:fd:100000){
+execute = "
+	WRITE_SFP((spfloat_t)READ_WFP($fs$),$fd$);
+	"
+}
+
+op cvt_w_d(01000110001-----:fs:fd:100100){
+execute = "
+	switch(READ_RM()){
+        case 1:
+            @fixed_word@ = (word_t)READ_DFP($fs$);
+            break;
+        case 2:                                               
+            @fixed_word@ = (word_t)ceil(READ_DFP($fs$));                   
+            break;                                            
+        case 3:                                               
+            @fixed_word@ = (word_t)floor(READ_DFP($fs$));                  
+            break;                                            
+        default:                                              
+        case 0:                                               
+            @fixed_word@ = (word_t)rint(READ_DFP($fs$));                   
+    };
+	WRITE_WFP(@fixed_word@,$fd$);    
+	"
+}
+
+op cvt_w_s(01000110000-----:fs:fd:100100){
+execute = "
+	switch(READ_RM()){
+        case 1:
+            @fixed_word@ = (word_t)READ_SFP($fs$);
+            break;
+        case 2:                                               
+            @fixed_word@ = (word_t)ceil((double)READ_SFP($fs$));                   
+            break;                                            
+        case 3:                                               
+            @fixed_word@ = (word_t)floor((double)READ_SFP($fs$));                  
+            break;                                            
+        default:                                              
+        case 0:                                               
+            @fixed_word@ = (word_t)rint((double)READ_SFP($fs$));                   
+    };
+	WRITE_WFP(@fixed_word@,$fd$);    
+	"
+}
+
+
+op div_d(01000110001:ft:fs:fd:000011){
+execute = "
+	WRITE_DFP(READ_DFP($fs$)/READ_DFP($ft$),$fd$);  
+	"
+}
+
+op div_s(01000110000:ft:fs:fd:000011){
+execute = "
+	WRITE_SFP(READ_SFP($fs$)/READ_SFP($ft$),$fd$);  
+	"
+}
+
+op mov_d(01000110001-----:fs:fd:000110){
+execute = "
+	WRITE_DFP(READ_DFP($fs$),$fd$);  
+	"
+}
+
+op mov_s(01000110000-----:fs:fd:000110){
+execute = "
+	WRITE_SFP(READ_SFP($fs$),$fd$);  
+	"
+}
+
+op mul_d(01000110001:ft:fs:fd:000010){
+execute = "
+	WRITE_DFP(READ_DFP($fs$)*READ_DFP($ft$),$fd$);  
+	"
+}
+
+op mul_s(01000110000:ft:fs:fd:000010){
+execute = "
+	WRITE_SFP(READ_SFP($fs$)*READ_SFP($ft$),$fd$);  
+	"
+}
+
+op neg_d(01000110001-----:fs:fd:000111){
+execute = "
+	WRITE_DFP(0-READ_DFP($fs$),$fd$);  
+	"
+}
+
+op neg_s(01000110000-----:fs:fd:000111){
+execute = "
+	WRITE_SFP(0-READ_SFP($fs$),$fd$);  
+	"
+}
+
+op sub_d(01000110001:ft:fs:fd:000001){
+execute = "
+	WRITE_DFP(READ_DFP($fs$)-READ_DFP($ft$),$fd$);  
+	"
+}
+
+op sub_s(01000110000:ft:fs:fd:000001){
+execute = "
+	WRITE_SFP(READ_SFP($fs$)-READ_SFP($ft$),$fd$);  
+	"
+}
+
+op c_cond_d(01000110001:ft:fs:cc:--11:cond){
+execute = "
+	@unordered@ = isnan(READ_DFP($fs$)) | isnan(READ_DFP($ft$));
+	if(@unordered@) {
+		@equal@ = false;
+		@less@ = false;                                    
+    }                                                         
+    else{
+		@equal@ = READ_DFP($fs$) == READ_DFP($ft$);
+		@less@ = READ_DFP($fs$) < READ_DFP($ft$);
+    }
+
+	if((($cond$&0x4) && @less@)||(($cond$&0x2) && @equal@)||(($cond$&0x1) && @unordered@))
+		SET_FCC($cc$);
+	else
+		CLEAR_FCC($cc$);
+	"
+} 
+
+op c_cond_s(01000110000:ft:fs:cc:--11:cond){
+execute = "
+	@unordered@ = isnan(READ_SFP($fs$)) | isnan(READ_SFP($ft$));
+	if(@unordered@) {
+		@equal@ = false;
+		@less@ = false;                                    
+    }                                                         
+    else{
+		@equal@ = READ_SFP($fs$) == READ_SFP($ft$);
+		@less@ = READ_SFP($fs$) < READ_SFP($ft$);
+    }
+
+	if((($cond$&0x4) && @less@)||(($cond$&0x2) && @equal@)||(($cond$&0x1) && @unordered@))
+		SET_FCC($cc$);
+	else
+		CLEAR_FCC($cc$);
+	"
+} 
+
+op bc1f(01000101000:cc:00:imm) {
+condition="!READ_FCC($cc$)"
+ctarget="@npc@+((hword_t)$imm$ << 2)"
+}
+
+op bc1t(01000101000:cc:01:imm) {
+condition="READ_FCC($cc$)"
+ctarget="@npc@+((hword_t)$imm$ << 2)"
+}
+
+op syscall(000000--------------------001100) {
+execute = "
+	DO_SYSCALL(emm,@pc@);
+	"
+}
+
+} /* root */

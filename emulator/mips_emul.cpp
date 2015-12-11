@@ -35,11 +35,6 @@ static const char * const mnemonic_table[] = {
 
 using namespace emulator;
 
-bool is_break_inst(mips_inst_t inst)
-{
-	return (inst & 0xFC00003F)==0x0000000D;
-}
-
 mips_emulator::mips_emulator(bool v)
 {
 	mem = new memory;
@@ -107,13 +102,13 @@ void mips_emulator::seg_fault()
 
 void mips_emulator::execute(mips_inst_t inst)
 {
-	if(delay_slot) {
-		decode_main(this, inst);
+	bool delay_flag = delay_slot;
+	decode_main(this, inst);
+	if(delay_flag) {
 		WritePC(nextPC);
 		delay_slot = is_break_inst(inst); //break inst. has no side effect
 	}
 	else { //increment PC+4
-		decode_main(this, inst);
 		WritePC(ReadPC() + 4);
 	}
 }

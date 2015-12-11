@@ -263,20 +263,28 @@ putpkt (char *buf)
 
 		if (remote_debug)
 		{
+#ifdef DEBUG
 			fprintf (stderr, "putpkt (\"%s\"); [looking for ack]\n", buf2);
+#endif
 			fflush (stderr);
 		}
 		cc = read (remote_desc, buf3, 1);
 		if (remote_debug)
 		{
+#ifdef DEBUG
 			fprintf (stderr, "[received '%c' (0x%x)]\n", buf3[0], buf3[0]);
+#endif
 			fflush (stderr);
 		}
 
 		if (cc <= 0)
 		{
 			if (cc == 0)
+#ifdef DEBUG
 				fprintf (stderr, "putpkt(read): Got EOF\n");
+#else
+			do {} while (0);
+#endif
 			else
 				perror ("putpkt(read)");
 
@@ -310,7 +318,11 @@ readchar (void)
 	if (bufcnt <= 0)
 	{
 		if (bufcnt == 0)
+#ifdef DEBUG
 			fprintf (stderr, "readchar: Got EOF\n");
+#else
+			do {} while (0);
+#endif
 		else
 			perror ("readchar");
 
@@ -343,8 +355,10 @@ getpkt (char *buf)
 				break;
 			if (remote_debug)
 			{
+#ifdef DEBUG
 				fprintf (stderr, "[getpkt: discarding char '%c']\n", c);
 				fflush (stderr);
+#endif
 			}
 
 			if (c < 0)
@@ -377,16 +391,20 @@ getpkt (char *buf)
 
 	if (remote_debug)
 	{
+#ifdef DEBUG
 		fprintf (stderr, "getpkt (\"%s\");	[sending ack] \n", buf);
 		fflush (stderr);
+#endif
 	}
 
 	write (remote_desc, "+", 1);
 
 	if (remote_debug)
 	{
+#ifdef DEBUG
 		fprintf (stderr, "[sent ack]\n");
 		fflush (stderr);
+#endif
 	}
 
 	return bp - buf;

@@ -13,28 +13,29 @@
     GNU General Public License for more details.
 *************************************************************************/
 
-#ifndef AUTO_IMPL
-#define AUTO_IMPL
+#ifndef AUTO_EMITC
+#define AUTO_EMITC
 
 
-extern void impl_default(IMPL_FORMALS);
+extern char* emitc_default(EMITC_FORMALS);
 
-#define impl_null impl_default
-#define _STUB_DEC(a) static void stub_##a(IMPL_FORMALS);
+#define emitc_null emitc_default
+#define _STUB_DEC(a) char* estub_##a(EMITC_FORMALS);
 
-#define _TABLE_DEF_BEGIN(a,b) static void (*table_## a [b])(IMPL_FORMALS) = {
+#define _TABLE_DEF_BEGIN(a,b) char* (*etable_## a [b])(EMITC_FORMALS) = {
 #define _TABLE_DEF_END };
 
-#define _STUB_ENTRY(a) static void stub_##a(IMPL_FORMALS)
+#define _STUB_ENTRY(a) char* estub_##a(EMITC_FORMALS)
 
-#define _FUNC_CALL(a) impl_##a(IMPL_ARGS)
-#define _FUNC_NAME(a) impl_##a
-#define _STUB_NAME(a) stub_##a
-#define _FUNC_DEFAULT impl_default
+#define _FUNC_CALL(a) return emitc_##a(EMITC_ARGS)
+#define _FUNC_NAME(a) emitc_##a
+#define _STUB_NAME(a) estub_##a
+#define _FUNC_DEFAULT emitc_default
 
-#define _TABLE_JUMP(a,b,c) table_##a[(inst>>c)&b](IMPL_ARGS)
-#define _PATTERN_TRUE(a,b) ((inst&a)==b)
+#define EINST emm->mem->read_word_fast(curpc)
+#define _TABLE_JUMP(a,b,c) return etable_##a[(EINST>>c)&b](EMITC_ARGS)
+#define _PATTERN_TRUE(a,b) ((EINST&a)==b)
 
-#define _MAIN_DECODE_ENTRY static void decode_main(IMPL_FORMALS)
+#define _MAIN_DECODE_ENTRY char* emit_code(EMITC_FORMALS)
 
 #endif

@@ -1,0 +1,38 @@
+
+OBJS = Stotal1.o Stotal2.o Scompiled_all.o compiled_main.o compiled_run.o
+BIN_NAME = prog_bin
+CFLAGS = -O -msse2 -mfpmath=sse -fomit-frame-pointer 
+CXX = @CXX@
+
+
+INC_PATH = -I @prefix@/include
+LIB_PATH = -L @prefix@/lib
+
+$(BIN_NAME): $(OBJS)
+	$(CXX) $(CFLAGS) -o $(BIN_NAME) $(OBJS) $(LIB_PATH) -lemips
+
+Stotal1.o: Stotal1.cpp compiled_run.hpp Scompiled_all.hpp
+	sed "s/READ_GPR(0)/0/g" Stotal1.cpp > tmp1.out
+	mv tmp1.out Stotal1.cpp
+	$(CXX) $(CFLAGS) -o $@ -c $< $(INC_PATH) 
+
+Stotal2.o: Stotal2.cpp compiled_run.hpp Scompiled_all.hpp
+	sed "s/READ_GPR(0)/0/g" Stotal2.cpp > tmp2.out
+	mv tmp2.out Stotal2.cpp
+	$(CXX) $(CFLAGS) -o $@ -c $< $(INC_PATH) 
+
+Scompiled_all.o: Scompiled_all.cpp
+	$(CXX) $(CFLAGS) -o $@ -c $< $(INC_PATH) 
+
+compiled_main.o: compiled_main.cpp compiled_run.hpp Scompiled_all.hpp
+	$(CXX) $(CFLAGS) -o $@ -c $< $(INC_PATH) 
+
+compiled_run.o: compiled_run.cpp compiled_run.hpp Scompiled_all.hpp
+	$(CXX) $(CFLAGS) -o $@ -c $< $(INC_PATH) 
+
+decompclean:
+	rm -f S*
+
+clean:
+	rm -f $(BIN_NAME)
+	rm -f *.o

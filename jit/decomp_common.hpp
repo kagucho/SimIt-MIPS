@@ -12,3 +12,11 @@
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
     GNU General Public License for more details.
 *************************************************************************/
+
+#include "arch.hpp"
+#include <cstdio>
+
+void decomp_block(FILE *outfile, emulator_t *emm,
+	mips_addr_t fstart, mips_addr_t fend, unsigned ind);
+char *emitc_default(char *buf, emulator_t *emm, target_addr_t curpc,
+	target_addr_t fstart, target_addr_t fend, bool n);

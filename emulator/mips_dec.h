@@ -13,7 +13,7 @@
     GNU General Public License for more details.
 *************************************************************************/
 /*
-Binary decoder synthesized by mipsim version 0.0.0
+Binary decoder synthesized by SimIt-MIPS version 1.0b
 
 Input statistics 
 Total entries  : 463

@@ -23,15 +23,6 @@
 #define WORDS_BIGENDIAN 0
 #endif
 
-#ifdef  SIM_LITE
-#define EMUMEM_FAST
-#else
-#define EMUMEM_SAFE
-#define SIM_SAFE
-#define COUNT_INST
-#endif
-
-
 #define NUM_GPR 32
 #define NUM_FPR 16
 
@@ -59,7 +50,7 @@ typedef hword_t halfword_t;
 
 /*memory operation macros*/
 #define READ_WORD(ind) (emm->mem->read_word(ind))
-#define READ_HWORD(ind) (emm->mem->read_half_word(ind))
+#define READ_HWORD(ind) (emm->mem->read_halfword(ind))
 #define READ_DWORD(ind) (emm->mem->read_dword(ind))
 #define READ_BYTE(ind) (emm->mem->read_byte(ind))
 #define MEM_READ(buf, addr, size) (emu->mem->read_block(buf, addr, size))
@@ -69,7 +60,7 @@ typedef hword_t halfword_t;
 #define WRITE_WORD(var, ind) \
 	(static_cast<emulator::dyn_mips_emulator *>(emm)->check_write(ind),emm->mem->write_word(ind, var))
 #define WRITE_HWORD(var, ind) \
-	(static_cast<emulator::dyn_mips_emulator *>(emm)->check_write(ind),emm->mem->write_half_word(ind, var))
+	(static_cast<emulator::dyn_mips_emulator *>(emm)->check_write(ind),emm->mem->write_halfword(ind, var))
 #define WRITE_BYTE(var, ind) \
 	(static_cast<emulator::dyn_mips_emulator *>(emm)->check_write(ind),emm->mem->write_byte(ind, var))
 #define WRITE_DWORD(var, ind) \
@@ -83,7 +74,7 @@ typedef hword_t halfword_t;
 #endif
 #else
 #define WRITE_WORD(var, ind) (emm->mem->write_word(ind, var))
-#define WRITE_HWORD(var, ind) (emm->mem->write_half_word(ind, var))
+#define WRITE_HWORD(var, ind) (emm->mem->write_halfword(ind, var))
 #define WRITE_BYTE(var, ind) (emm->mem->write_byte(ind, var))
 #define WRITE_DWORD(var, ind) (emm->mem->write_dword(ind, var)) //NOT NEEDED
 #define WRITE_BYTE(var, ind) (emm->mem->write_byte(ind, var))

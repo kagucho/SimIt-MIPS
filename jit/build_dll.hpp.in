@@ -12,3 +12,10 @@
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
     GNU General Public License for more details.
 *************************************************************************/
+
+#define PREFIX "@prefix@"
+#define SED "@SED@"
+#define CXX "@CXX@"
+#define FP_OPTION " @FP_OPTION@"
+
+#define MORE_OPTION " -O -fpic -shared -pipe -fomit-frame-pointer"

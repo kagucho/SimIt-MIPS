@@ -22,7 +22,7 @@ $(DECLEX_SRC): $(DECLEX)
 	@LEX@ -o$@ $^
 
 
-bin_PROGRAMS = decgen32 #decgen64
+noinst_PROGRAMS = decgen32 #decgen64
 decgen32_SOURCES = decode.cpp decode_table.cpp huffman.cpp decode_tree.cpp \
 	main.cpp decode_theiling.cpp \
 	decode.h decode_table.h huffman.h decode_tree.h \

@@ -15,26 +15,32 @@
 
 #include "emumem.h"
 
-#ifdef EMUMEM_FAST
-#include <unistd.h>
-#include <sys/mman.h>
-#include <assert.h>
-#endif
-
+#include <cassert>
 #include <cstring>
 #include <iostream>
+#include <csignal>
 
 using namespace emulator;
 
-#ifdef EMUMEM_SAFE
-#include <csignal>
-
-memory::memory()
+memory::memory(unsigned int def_perm)
 {
-	memset(primary_hash_table, 0, sizeof(primary_hash_table));
+	def_perm &= MEMORY_PAGE_PERM_MASK;
+
+	/* if nonempty permission, then all pages are valid by default */
+	if (def_perm) 
+	{
+		for (unsigned int ii=0; ii<MEMORY_PAGE_TABLE_SIZE; ii++)
+			page_table[ii].flag = 
+				MEMORY_PAGE_EMPTY | (def_perm << MEMORY_PAGE_PERM_SHIFT);
+	}
+	/* otherwise all pages are invalid by default */
+	else 
+	{
+		for (unsigned int ii=0; ii<MEMORY_PAGE_TABLE_SIZE; ii++)
+			page_table[ii].flag = MEMORY_PAGE_UNAVAIL;
+	}
+
 	page_count = 0;
-	cache_valid = 0;
-	cached_addr = 0;
 }
 
 memory::~memory()
@@ -44,212 +50,559 @@ memory::~memory()
 
 memory::memory(const memory& mem)
 {
-	unsigned int i, j;
 
-	memset(primary_hash_table, 0, sizeof(primary_hash_table));
 	page_count = 0;
-
-	for(i = 0; i < PRIMARY_MEMORY_TABLE_SIZE; i++)
+	for(unsigned ii = 0; ii < MEMORY_PAGE_TABLE_SIZE; ii++)
 	{
-		const secondary_memory_hash_table_t *secondary_hash_table =
-		   mem.primary_hash_table[i];
-		
-		if(secondary_hash_table)
+		page_table[ii].flag = mem.page_table[ii].flag;
+		if (page_allocated(mem.page_table + ii))
 		{
-			secondary_memory_hash_table_t *secondary_hash_table_cpy = 
-				new secondary_memory_hash_table_t;
-			memset(secondary_hash_table_cpy, 0,
-				sizeof(secondary_memory_hash_table_t));
-			primary_hash_table[i] = secondary_hash_table_cpy;
-
-			for(j = 0; j < SECONDARY_MEMORY_TABLE_SIZE; j++)
-			{
-				const memory_page_table_entry_t *pte = 
-					secondary_hash_table->pte[j];
-
-				if (pte) {
-					memory_page_table_entry_t *pte_cpy =
-						new memory_page_table_entry_t;
-					pte_cpy->addr = pte->addr;
-					pte_cpy->storage = new byte_t[MEMORY_PAGE_SIZE];
-					pte_cpy->access = pte->access;
-					pte_cpy->ext = pte->ext;
-					memcpy(pte_cpy->storage, pte->storage, MEMORY_PAGE_SIZE);
-					secondary_hash_table_cpy->pte[j] = pte_cpy;
-					page_count++;
-				}
-
-			}
+			page_table[ii].ptr = new byte_t[MEMORY_PAGE_SIZE];
+			memcpy(page_table[ii].ptr,
+				mem.page_table[ii].ptr + (ii << MEMORY_PAGE_SIZE_BITS),
+				MEMORY_PAGE_SIZE);
+			page_table[ii].ptr -= ii << MEMORY_PAGE_SIZE_BITS;
+			page_count++;
 		}
 	}
-	cache_valid = 0;
-	cached_addr = 0;
 }
 
 void memory::reset()
 {
-	unsigned int i, j;
-	
-	for(i = 0; i < PRIMARY_MEMORY_TABLE_SIZE; i++)
+	for(unsigned int ii = 0; ii < MEMORY_PAGE_TABLE_SIZE; ii++)
 	{
-		secondary_memory_hash_table_t *secondary_hash_table =
-		   primary_hash_table[i];
-		
-		if(secondary_hash_table)
+		memory_page_table_entry_t *pte = page_table + ii;
+		if (page_allocated(pte)) 
 		{
-			for(j = 0; j < SECONDARY_MEMORY_TABLE_SIZE; j++)
-			{
-				memory_page_table_entry_t *pte = secondary_hash_table->pte[j];
-
-				if (pte) {
-					delete [] pte->storage;
-					delete pte;
-				}
-			}
-			delete secondary_hash_table;
+			pte->flag |= MEMORY_PAGE_EMPTY;
+			delete [] (pte->ptr + 
+					((pte - page_table) << MEMORY_PAGE_SIZE_BITS));
 		}
 	}
-	memset(primary_hash_table, 0, sizeof(primary_hash_table));
 	page_count = 0;
-
-	cache_valid = 0;
-	cached_addr = 0;
 }
 
 
-memory_page_table_entry_t *memory::allocate_page(target_addr_t index)
+
+unsigned int memory::get_page_permission(target_addr_t addr) const
 {
-	uint32_t h1, h2;
-	memory_page_table_entry_t *pte;
-	secondary_memory_hash_table_t *secondary_hash_table;
-		
-	h1 = hash1(index);
-	secondary_hash_table = primary_hash_table[h1];
-		
-	if(!secondary_hash_table)
-	{
-		secondary_hash_table = new secondary_memory_hash_table_t;
-		memset(secondary_hash_table, 0,
-			sizeof(secondary_memory_hash_table_t));
-		primary_hash_table[h1] = secondary_hash_table;
-	}
-		
-	h2 = hash2(index);
-	pte = new memory_page_table_entry_t;
-	pte->addr = index;
-	pte->storage = new byte_t[MEMORY_PAGE_SIZE];
-	memset(pte->storage, 0, MEMORY_PAGE_SIZE);
-	secondary_hash_table->pte[h2] = pte;
-	page_count++;
-	/* default pages are readable and writable but not executable */
-	pte->access = MEMORY_PAGE_READABLE | MEMORY_PAGE_WRITABLE;
-	pte->ext = NULL;
-	return pte;
+	const memory_page_table_entry_t *pte = get_page(addr);
+	unsigned int flag = pte->flag;
+	if (flag & MEMORY_PAGE_SLOW)
+		flag >>= MEMORY_PAGE_PERM_SHIFT;
+	return (flag & MEMORY_PAGE_PERM_MASK);
 }
 
-/* memory protection error */
-void memory::error(target_addr_t addr, unsigned access, unsigned action) {
-	fault_addr = addr;
-	fault_access = access;
-	fault_action = action;
+void memory::set_page_permission(target_addr_t addr, unsigned int perm)
+{
+	memory_page_table_entry_t *pte = get_page(addr);
+
+	// do nothing if the page is not available
+	if (pte->flag & MEMORY_PAGE_UNAVAIL) return;
+
+	// otherwise set permission
+	perm &= MEMORY_PAGE_PERM_MASK;
+	if (pte->flag & MEMORY_PAGE_SLOW) 
+	{
+		perm = perm << MEMORY_PAGE_PERM_SHIFT;        
+		pte->flag &= ~(MEMORY_PAGE_PERM_MASK << MEMORY_PAGE_PERM_SHIFT);
+		pte->flag |= perm;
+	}
+	else
+	{
+		pte->flag &= ~MEMORY_PAGE_PERM_MASK;
+		pte->flag |= perm;
+	}
+}
+
+void memory::set_region_permission(target_addr_t addr,
+	unsigned int size, unsigned int perm)
+{
+	target_addr_t aligned_addr = align_to_page_boundary(addr);      
+	for (; aligned_addr < addr + size; aligned_addr += MEMORY_PAGE_SIZE)   
+		set_page_permission(aligned_addr, perm);
+}
+
+
+
+void memory::remap_page(target_addr_t addr, 
+	memory_ext_interface *mif, unsigned int perm)
+{
+	memory_page_table_entry_t *pte = get_page(addr);
+
+	/* free space if the page is allocated some space */
+	if (page_allocated(pte))
+		delete [] (pte->ptr + ((pte - page_table) << MEMORY_PAGE_SIZE_BITS));
+
+	pte->flag = MEMORY_PAGE_REMAPPED; 
+	pte->flag |= (perm & MEMORY_PAGE_PERM_MASK) << MEMORY_PAGE_PERM_SHIFT;
+	pte->ptr = reinterpret_cast<byte_t *>(mif);
+}
+
+void memory::unmap_page(target_addr_t addr)
+{
+	memory_page_table_entry_t *pte = get_page(addr);
+	if (pte->flag & MEMORY_PAGE_REMAPPED)
+		pte->flag = MEMORY_PAGE_UNAVAIL;
+}
+
+void memory::remap_region(target_addr_t addr, unsigned int size,
+	memory_ext_interface *mif, unsigned int perm)
+{
+	target_addr_t aligned_addr = align_to_page_boundary(addr);      
+	for (; aligned_addr < addr + size; aligned_addr += MEMORY_PAGE_SIZE)   
+		remap_page(aligned_addr, mif, perm);
+}
+
+void memory::unmap_region(target_addr_t addr, unsigned int size)
+{
+	target_addr_t aligned_addr = align_to_page_boundary(addr);      
+	for (; aligned_addr < addr + size; aligned_addr += MEMORY_PAGE_SIZE)   
+		unmap_page(aligned_addr);
+}
+
+
+
+void memory::mark_page_available(target_addr_t addr, unsigned int perm)
+{
+	memory_page_table_entry_t *pte = get_page(addr);
+	perm &= MEMORY_PAGE_PERM_MASK;
+
+	/* if already available, change the permission only */
+	if (page_allocated(pte)) 
+		pte->flag = perm;
+	else
+		pte->flag = MEMORY_PAGE_EMPTY | (perm << MEMORY_PAGE_PERM_SHIFT);
+}
+
+void memory::mark_page_unavailable(target_addr_t addr)
+{
+	memory_page_table_entry_t *pte = get_page(addr);
+
+	/* free space if the page is allocated some space */
+	if (page_allocated(pte))
+		delete [] (pte->ptr + ((pte - page_table) << MEMORY_PAGE_SIZE_BITS));
+	pte->flag = MEMORY_PAGE_UNAVAIL; 
+}
+
+void memory::mark_region_available(target_addr_t addr,
+	unsigned int size, unsigned int perm)
+{
+	target_addr_t aligned_addr = align_to_page_boundary(addr);      
+	for (; aligned_addr < addr + size; aligned_addr += MEMORY_PAGE_SIZE)   
+		mark_page_available(aligned_addr, perm);
+}
+
+void memory::mark_region_unavailable(target_addr_t addr, unsigned int size)
+{
+	target_addr_t aligned_addr = align_to_page_boundary(addr);      
+	for (; aligned_addr < addr + size; aligned_addr += MEMORY_PAGE_SIZE)   
+		mark_page_unavailable(aligned_addr);
+}
+
+
+
+void memory::allocate_page(memory_page_table_entry_t *pte)
+{
+	assert(!page_allocated(pte));
+
+	pte->ptr = new byte_t[MEMORY_PAGE_SIZE];
+	memset(pte->ptr, 0, MEMORY_PAGE_SIZE);
+	// inherit the permission bits if any
+	pte->flag = (pte->flag >> MEMORY_PAGE_PERM_SHIFT) & MEMORY_PAGE_PERM_MASK;
+
+	// subtract the starting address from the ptr so that it is easier
+	// to compute the actual address, see translate() for clue
+	pte->ptr -= (pte - page_table) << MEMORY_PAGE_SIZE_BITS;
+	page_count++;
+}
+
+
+
+unsigned int memory::read_block_within_page(void *buf, target_addr_t addr,
+		unsigned int size, memory_fault_info_t *f)
+{
+	memory_page_table_entry_t *pte = get_page(addr);
+	if (check_page_permission(addr, MEMORY_PAGE_READABLE, f))
+		return 0;
+
+	/* check if crossing page boundary */
+	if ((addr >> MEMORY_PAGE_SIZE_BITS) !=
+		((addr + size - 1) >> MEMORY_PAGE_SIZE_BITS))
+	{
+		size = MEMORY_PAGE_SIZE - (addr & (MEMORY_PAGE_SIZE - 1));
+	}
+
+	// check storage allocation
+	if (pte->flag & MEMORY_PAGE_REMAPPED) 
+		size = reinterpret_cast<memory_ext_interface *>(pte->ptr)->
+				read_block(buf, addr, size, f);
+	else
+	{
+		if (pte->flag & MEMORY_PAGE_EMPTY) 
+			allocate_page(pte);
+		memcpy(buf, pte->ptr + addr, size);
+	}
+
+	return size;
+}
+
+unsigned int memory::read_block(void *buf, target_addr_t addr,
+		unsigned int size, memory_fault_info_t *f)
+{
+	unsigned int sz, len = 0;
+
+	/* crossing the page boundary */
+	while (len < size)
+	{
+		if ((sz = read_block_within_page(buf, addr+len, size-len, f))==0)
+			break;
+		len += sz;
+		buf = reinterpret_cast<byte_t *>(buf) + sz;
+	}
+	return len;
+}
+
+unsigned int memory::write_block_within_page(target_addr_t addr, void *buf, 
+		unsigned int size, memory_fault_info_t *f)
+{
+	memory_page_table_entry_t *pte = get_page(addr);
+	if (check_page_permission(addr, MEMORY_PAGE_WRITABLE, f))
+		return 0;
+
+	/* check if crossing page boundary */
+	if ((addr >> MEMORY_PAGE_SIZE_BITS) !=
+		((addr + size - 1) >> MEMORY_PAGE_SIZE_BITS))
+	{
+		size = MEMORY_PAGE_SIZE - (addr & (MEMORY_PAGE_SIZE - 1));
+	}
+
+	if (pte->flag & MEMORY_PAGE_REMAPPED) 
+		size = reinterpret_cast<memory_ext_interface *>(pte->ptr)->
+				write_block(addr, buf, size, f);
+	else {
+		if (pte->flag & MEMORY_PAGE_EMPTY) 
+			allocate_page(pte);
+		memcpy(pte->ptr + addr, buf, size);
+	}
+
+	return size;
+}
+
+unsigned int memory::write_block(target_addr_t addr, void *buf,
+		unsigned int size, memory_fault_info_t *f)
+{
+	unsigned int sz, len = 0;
+
+	/* crossing the page boundary */
+	while (len < size)
+	{
+		if ((sz = write_block_within_page(addr+len, buf, size-len, f))==0)
+			break;
+		len += sz;
+		buf = reinterpret_cast<byte_t *>(buf) + sz;
+	}
+	return len;
+}
+
+unsigned int memory::set_block_within_page(target_addr_t addr, byte_t value, 
+		unsigned int size, memory_fault_info_t *f)
+{
+	memory_page_table_entry_t *pte = get_page(addr);
+	if (check_page_permission(addr, MEMORY_PAGE_WRITABLE, f))
+		return 0;
+
+	/* check if crossing page boundary */
+	if ((addr >> MEMORY_PAGE_SIZE_BITS) !=
+		((addr + size - 1) >> MEMORY_PAGE_SIZE_BITS))
+	{
+		size = MEMORY_PAGE_SIZE - (addr & (MEMORY_PAGE_SIZE - 1));
+	}
+
+	if (pte->flag & MEMORY_PAGE_REMAPPED) 
+		size = reinterpret_cast<memory_ext_interface *>(pte->ptr)->
+				set_block(addr, value, size, f);
+	else {
+		if (pte->flag & MEMORY_PAGE_EMPTY) 
+			allocate_page(pte);
+		memset(pte->ptr + addr, value, size);
+	}
+
+	return size;
+}
+
+
+unsigned int memory::set_block(target_addr_t addr, byte_t value,
+		unsigned int size, memory_fault_info_t *f)
+{
+	unsigned int sz, len = 0;
+
+	/* crossing the page boundary */
+	while (len < size)
+	{
+		if ((sz = set_block_within_page(addr+len, value, size-len, f))==0)
+			break;
+		len += sz;
+	}
+	return len;
+}
+
+
+bool memory::check_page_permission(target_addr_t addr,
+		unsigned int perm, memory_fault_info_t *f)
+{
+	const memory_page_table_entry_t *pte = get_page(addr);
+	// check storage allocation
+	if (pte->flag & MEMORY_PAGE_UNAVAIL) 
+	{
+		report_fault(addr, MEMORY_ERROR_BADADDR, f);
+		return true;
+	}
+
+	unsigned int priv = pte->flag & MEMORY_PAGE_PERM_MASK;
+	if (pte->flag & MEMORY_PAGE_AVAIL_SLOW) 
+		priv = (pte->flag >> MEMORY_PAGE_PERM_SHIFT) & MEMORY_PAGE_PERM_MASK;
+
+	perm &= ~priv;
+	if (perm) {
+		report_fault(addr, perm, f);
+		return true;
+	}
+	return false;
+}
+
+void memory::report_fault(target_addr_t addr, unsigned fault,
+		memory_fault_info_t *f)
+{
+	if (f==NULL) {
+		fault_info.addr = addr;
+		fault_info.code = fault;
+	}
+	else {
+		f->addr = addr;
+		f->code = fault;
+	}
 	raise(SIGUSR1);
 }
 
-#endif
 
-#ifdef EMUMEM_FAST
-void memory::init()
+byte_t memory::read_byte_slow(target_addr_t addr,
+		memory_fault_info_t *f)
 {
-	for(unsigned frame_index = 0; frame_index < MMAP_FRAME_NUM; frame_index++)
+	memory_page_table_entry_t *pte = get_page(addr);
+	if (check_page_permission(addr, MEMORY_PAGE_READABLE, f))
+		return 0;
+
+	// check storage allocation
+	if (pte->flag & MEMORY_PAGE_EMPTY) 
 	{
-		mmap_frame[frame_index] = 0;
+		allocate_page(pte);
+		return *(pte->ptr + addr);
 	}
-	page_count = 0;
-}
-
-memory::memory()
-{
-	init();
-}
-
-memory::memory(const memory& mem)
-{
-	init();
-
-	for(unsigned frame_index = 0; frame_index < MMAP_FRAME_NUM; frame_index++)
+	else //if (pte->flag & MEMORY_PAGE_REMAPPED) 
 	{
-		if (mem.mmap_frame[frame_index]) {
-			allocate_frame(frame_index);
-			const target_addr_t offset = frame_index << MMAP_FRAME_SHIFT;
-			memcpy(mmap_frame[frame_index]+offset,
-				mem.mmap_frame[frame_index]+offset, MMAP_FRAME_SIZE);
-		}
+		return reinterpret_cast<memory_ext_interface *>(pte->ptr)->
+				read_byte(addr, f);
 	}
 }
 
-memory::~memory()
+void memory::write_byte_slow(target_addr_t addr, byte_t value,
+		memory_fault_info_t *f)
 {
-	reset();
+	memory_page_table_entry_t *pte = get_page(addr);
+	if (check_page_permission(addr, MEMORY_PAGE_WRITABLE, f)) return;
+
+	// check storage allocation
+	if (pte->flag & MEMORY_PAGE_EMPTY) 
+	{
+		allocate_page(pte);
+		*(pte->ptr + addr) = value;
+	}
+	else //if (pte->flag & MEMORY_PAGE_REMAPPED) 
+	{
+		reinterpret_cast<memory_ext_interface *>(pte->ptr)->
+			write_byte(addr, value, f);
+	}
 }
 
-void memory::reset()
+halfword_t memory::read_halfword_slow(target_addr_t addr,
+		memory_fault_info_t *f)
 {
-	for(unsigned frame_index = 0; frame_index < MMAP_FRAME_NUM; frame_index++)
+	halfword_t value;
+
+	// check page boundary
+	if (cross_page_boundary(addr, sizeof(halfword_t)))
 	{
-		byte_t * frame_start = mmap_frame[frame_index];
-		if (frame_start != 0)
+		read_block(reinterpret_cast<void *>(&value), addr,
+			sizeof(halfword_t), f);
+	}
+	else
+	{
+		memory_page_table_entry_t *pte = get_page(addr);
+		if (check_page_permission(addr, MEMORY_PAGE_READABLE, f))
+			return 0;
+
+		// check storage allocation
+		if (pte->flag & MEMORY_PAGE_EMPTY) 
 		{
-			const target_addr_t offset = frame_index << MMAP_FRAME_SHIFT;
-			munmap(frame_start + offset, MMAP_FRAME_SIZE);
-			mmap_frame[frame_index] = 0;
+			allocate_page(pte);
+			value = *reinterpret_cast<halfword_t *>(pte->ptr + addr);
+		}
+		else //if (pte->flag & MEMORY_PAGE_REMAPPED) 
+		{
+			return reinterpret_cast<memory_ext_interface *>(pte->ptr)->
+					read_halfword(addr, f);
 		}
 	}
-
-	page_count = 0;
+#if WORDS_BIGENDIAN==TARGET_LITTLE_ENDIAN
+	return swap_halfword(value);
+#else
+	return value;
+#endif
 }
 
-byte_t * memory::allocate_frame(target_addr_t index)
+void memory::write_halfword_slow(target_addr_t addr, halfword_t value,
+		memory_fault_info_t *f)
 {
-	byte_t * frame_start = reinterpret_cast<byte_t *>
-		(mmap(0, MMAP_FRAME_SIZE, PROT_READ|PROT_WRITE,
-			  MAP_PRIVATE|MAP_ANONYMOUS, -1, 0));
-	assert(frame_start != MAP_FAILED);
+	word_t val;
 
-	page_count++;
-
-	const target_addr_t frame_begin_offset = index << MMAP_FRAME_SHIFT;
-	return mmap_frame[index] = frame_start - frame_begin_offset;
-}
+#if WORDS_BIGENDIAN==TARGET_LITTLE_ENDIAN
+	val = swap_word(value);
+#else
+	val = value;
 #endif
 
-dword_t memory::read_dword(target_addr_t addr)
+	// check page boundary
+	if (cross_page_boundary(addr, sizeof(halfword_t)))
+	{
+		write_block(addr, &val, sizeof(halfword_t), f);
+	}
+	else
+	{
+		memory_page_table_entry_t *pte = get_page(addr);
+		if (check_page_permission(addr, MEMORY_PAGE_WRITABLE, f)) return;
+
+		// check storage allocation
+		if (pte->flag & MEMORY_PAGE_EMPTY)
+		{
+			allocate_page(pte);
+			*reinterpret_cast<halfword_t *>(pte->ptr + addr) = val;
+		}
+		else //if (pte->flag & MEMORY_PAGE_REMAPPED) 
+		{
+			return reinterpret_cast<memory_ext_interface *>(pte->ptr)->
+					write_halfword(addr, value, f);
+		}
+	}
+}
+
+word_t memory::read_word_slow(target_addr_t addr,
+		memory_fault_info_t *f)
+{
+	word_t value;
+
+	// check page boundary
+	if (cross_page_boundary(addr, sizeof(word_t)))
+	{
+		read_block(reinterpret_cast<void *>(&value), addr, sizeof(word_t), f);
+	}
+	else
+	{
+		memory_page_table_entry_t *pte = get_page(addr);
+		if (check_page_permission(addr, MEMORY_PAGE_READABLE, f))
+			return 0;
+
+		// check storage allocation
+		if (pte->flag & MEMORY_PAGE_EMPTY) 
+		{
+			allocate_page(pte);
+			value = *reinterpret_cast<word_t *>(pte->ptr + addr);
+		}
+		else //if (pte->flag & MEMORY_PAGE_REMAPPED) 
+		{
+			return reinterpret_cast<memory_ext_interface *>(pte->ptr)->
+					read_word(addr, f);
+		}
+	}
+#if WORDS_BIGENDIAN==TARGET_LITTLE_ENDIAN
+	return swap_word(value);
+#else
+	return value;
+#endif
+}
+
+void memory::write_word_slow(target_addr_t addr, word_t value,
+		memory_fault_info_t *f)
+{
+	word_t val;
+
+#if WORDS_BIGENDIAN==TARGET_LITTLE_ENDIAN
+	val = swap_word(value);
+#else
+	val = value;
+#endif
+
+	// check page boundary
+	if (cross_page_boundary(addr, sizeof(word_t)))
+	{
+		write_block(addr, &val, sizeof(word_t), f);
+	}
+	else
+	{
+		memory_page_table_entry_t *pte = get_page(addr);
+		if (check_page_permission(addr, MEMORY_PAGE_WRITABLE, f)) return;
+
+		// check storage allocation
+		if (pte->flag & MEMORY_PAGE_EMPTY)
+		{
+			allocate_page(pte);
+			*reinterpret_cast<word_t *>(pte->ptr + addr) = val;
+		}
+		else //if (pte->flag & MEMORY_PAGE_REMAPPED) 
+		{
+			return reinterpret_cast<memory_ext_interface *>(pte->ptr)->
+					write_word(addr, value, f);
+		}
+	}
+}
+
+dword_t memory::read_dword_slow(target_addr_t addr,
+		memory_fault_info_t *f)
 {
 	dword_t value;
-	byte_t *ptr;
-        
-#ifdef EMUMEM_SAFE
-	/* if crossing page boundary */
-	if ((addr%MEM_PAGE_BOUNDARY) > MEM_PAGE_BOUNDARY-sizeof(dword_t)) {
-		read_block(&value, addr, sizeof(dword_t));
+
+	// check page boundary
+	if (cross_page_boundary(addr, sizeof(dword_t)))
+	{
+		read_block(reinterpret_cast<void *>(&value), addr, sizeof(dword_t), f);
 	}
-	else {
-		ptr = translate(addr, MEMORY_PAGE_READABLE);
-		value = ptr?*reinterpret_cast<dword_t*>(ptr):intf->read_dword(addr);
+	else
+	{
+		memory_page_table_entry_t *pte = get_page(addr);
+		if (check_page_permission(addr, MEMORY_PAGE_READABLE, f))
+			return 0;
+
+		// check storage allocation
+		if (pte->flag & MEMORY_PAGE_EMPTY)
+		{
+			allocate_page(pte);
+			value = *reinterpret_cast<dword_t *>(pte->ptr + addr);
+		}
+		else //if (pte->flag & MEMORY_PAGE_REMAPPED) 
+		{
+			return reinterpret_cast<memory_ext_interface *>(pte->ptr)->
+					read_dword(addr, f);
+		}
 	}
+#if WORDS_BIGENDIAN==TARGET_LITTLE_ENDIAN
+	return swap_dword(value);
 #else
-	ptr = translate(addr, MEMORY_PAGE_READABLE);
-	value = *reinterpret_cast<dword_t*>(ptr);
+	return value;
 #endif
- 
-ret_pt:
-#if WORDS_BIGENDIAN==TARGET_LITTLE_ENDIAN                     
-	return swap_dword(value);                          
-#else                                                         
-	return value;                                     
-#endif                    
 }
 
-void memory::write_dword(target_addr_t addr, dword_t value)
+void memory::write_dword_slow(target_addr_t addr, dword_t value,
+		memory_fault_info_t *f)
 {
 	dword_t val;
                                                               
@@ -258,112 +611,31 @@ void memory::write_dword(target_addr_t addr, dword_t value)
 #else                                                         
 	val = value;                                      
 #endif                                                        
-                                                              
-#ifdef EMUMEM_SAFE
-	/* if crossing page boundary */
-	if ((addr%MEM_PAGE_BOUNDARY) > MEM_PAGE_BOUNDARY-sizeof(dword_t)) {
-		write_block(addr, &val, sizeof(dword_t));
-		return;
+
+	// check page boundary
+	if (cross_page_boundary(addr, sizeof(dword_t)))
+	{
+		write_block(addr, &val, sizeof(dword_t), f);
 	}
-	byte_t *ptr = translate(addr, MEMORY_PAGE_WRITABLE);
-	if (ptr) *reinterpret_cast<dword_t*>(ptr) = val;
-	else intf->write_dword(addr, val);
-#else
-	byte_t *ptr = translate(addr, MEMORY_PAGE_WRITABLE);
-	*reinterpret_cast<dword_t*>(ptr) = val;
-#endif
+	else
+	{
+		memory_page_table_entry_t *pte = get_page(addr);
+		if (check_page_permission(addr, MEMORY_PAGE_WRITABLE, f))
+			return;
+
+		// check storage allocation
+		if (pte->flag & MEMORY_PAGE_EMPTY)
+		{
+			allocate_page(pte);
+			*reinterpret_cast<dword_t *>(pte->ptr + addr) = val;
+		}
+		else //if (pte->flag & MEMORY_PAGE_REMAPPED) 
+		{
+			return reinterpret_cast<memory_ext_interface *>(pte->ptr)->
+					write_dword(addr, value, f);
+		}
+	}
 }
-
-
-#define MEM_BLOCK_CODE(to,from,frame_size) \
-if(size > 0) \
-{ \
-	const target_addr_t frame_offset = addr % frame_size; \
-	byte_t *frame_addr = reinterpret_cast<byte_t *>(translate(addr,MEM_ACC)); \
-	target_addr_t sz = frame_size - frame_offset;	 \
-	if(size > sz) \
-	{ \
-		MEM_BLOCK_OP(to, from, sz); \
-		size -= sz; \
-		addr += sz; \
-		buf = reinterpret_cast<byte_t *>(buf) + sz; \
-		\
-		if(size >= frame_size) \
-		{ \
-			do \
-			{ \
-				frame_addr = reinterpret_cast<byte_t *>(translate(addr,MEM_ACC)); \
-				MEM_BLOCK_OP(to, from, frame_size); \
-				size -= frame_size; \
-				addr += frame_size; \
-				buf = reinterpret_cast<byte_t *>(buf) + frame_size; \
-			} while(size >= frame_size); \
-		} \
-		\
-		if(size > 0) \
-		{ \
-			frame_addr = reinterpret_cast<byte_t *>(translate(addr,MEM_ACC)); \
-			MEM_BLOCK_OP(to, from, size); \
-		} \
-	} \
-	else \
-	{ \
-		MEM_BLOCK_OP(to, from, size); \
-	} \
-}
-
-#ifdef EMUMEM_SAFE
-#define FRAME_SIZE MEMORY_PAGE_SIZE
-#endif
-
-#ifdef EMUMEM_FAST
-#define FRAME_SIZE MMAP_FRAME_SIZE
-#endif
-
-void memory::read_block(void *buf, target_addr_t addr, unsigned int size)
-{
-#ifdef EMUMEM_SAFE
-#define MEM_BLOCK_OP(tt,ff,ss) \
-	if (frame_addr) memcpy(tt,ff,ss); else intf->read_block(tt, addr, ss);
-#else
-#define MEM_BLOCK_OP memcpy
-#endif
-#define MEM_ACC MEMORY_PAGE_READABLE
-MEM_BLOCK_CODE(buf,frame_addr,FRAME_SIZE)
-#undef MEM_BLOCK_OP
-#undef MEM_ACC
-}
-
-void memory::write_block(target_addr_t addr, void *buf, unsigned int size)
-{
-#ifdef EMUMEM_SAFE
-#define MEM_BLOCK_OP(tt,ff,ss) \
-	if (frame_addr) memcpy(tt,ff,ss); else intf->write_block(addr, ff, ss);
-#else
-#define MEM_BLOCK_OP memcpy
-#endif
-#define MEM_ACC MEMORY_PAGE_READABLE
-MEM_BLOCK_CODE(frame_addr,buf,FRAME_SIZE)
-#undef MEM_BLOCK_OP
-#undef MEM_ACC
-}
-
-void memory::set_block(target_addr_t addr, byte_t value, unsigned int size)
-{
-	void * buf = 0;
-#ifdef EMUMEM_SAFE
-#define MEM_BLOCK_OP(tt,ff,ss) \
-	if (frame_addr) memset(tt,ff,ss); else intf->write_set(addr, 0, ss);
-#else
-#define MEM_BLOCK_OP memset
-#endif
-#define MEM_ACC MEMORY_PAGE_READABLE
-MEM_BLOCK_CODE(frame_addr,value,FRAME_SIZE)
-#undef MEM_BLOCK_OP
-#undef MEM_ACC
-}
-
-#undef FRAME_SIZE
 
 
 #ifdef TEST_MEMORY
@@ -375,10 +647,10 @@ bool memory::test()
 	/* test half_word */
 	halfword_t hw;
 	for (i=0; i<1024;i+=2)
-		write_half_word(i, (halfword_t)i);
+		write_halfword(i, (halfword_t)i);
 
 	for (i=0; i<1024;i+=2)
-		if ((hw=read_half_word(i))!=(halfword_t)i ||
+		if ((hw=read_halfword(i))!=(halfword_t)i ||
 			read_byte(i)!=(byte_t)i ||
 			read_byte(i+1)!=(byte_t)(i>>8)) {
 			ret = false;
@@ -416,8 +688,8 @@ bool memory::test()
 
 	/* alignment test at page boundary*/
 	for (i=0; i<8; i++) {
-		write_word(MEM_PAGE_BOUNDARY-i, 0xAABBCCDD);
-		w = read_word(MEM_PAGE_BOUNDARY-i);
+		write_word(MEMORY_PAGE_SIZE-i, 0xAABBCCDD);
+		w = read_word(MEMORY_PAGE_SIZE-i);
 		if (w != 0xAABBCCDD) {
 			std::cerr << "word alignment test failed at " << i << ", get " << w
 				<< std::endl;
@@ -427,8 +699,8 @@ bool memory::test()
 
 	/* alignment test at page boundary*/
 	for (i=0; i<16; i++) {
-		write_dword(MEM_PAGE_BOUNDARY-i, 0x66778899AABBCCDDULL);
-		dw = read_dword(MEM_PAGE_BOUNDARY-i);
+		write_dword(MEMORY_PAGE_SIZE-i, 0x66778899AABBCCDDULL);
+		dw = read_dword(MEMORY_PAGE_SIZE-i);
 		if (dw != 0x66778899AABBCCDDULL) {
 			std::cerr << "dword alignment test failed at " << i << ", get "
 				<< dw << std::endl;
@@ -437,8 +709,8 @@ bool memory::test()
 
 	/* alignment test at page boundary*/
 	for (i=0; i<4; i++) {
-		write_half_word(MEM_PAGE_BOUNDARY-i, 0x6677);
-		hw = read_half_word(MEM_PAGE_BOUNDARY-i);
+		write_halfword(MEMORY_PAGE_SIZE-i, 0x6677);
+		hw = read_halfword(MEMORY_PAGE_SIZE-i);
 		if (hw != 0x6677) {
 			std::cerr << "hword alignment test failed at " << i << ", get "
 				<< hw << std::endl;
@@ -450,8 +722,8 @@ bool memory::test()
 	char bufff[sizeof(hello)];
 	
 
-	write_block(MEM_PAGE_BOUNDARY-1, hello, sizeof(hello));
-	read_block(bufff, MEM_PAGE_BOUNDARY-1, sizeof(hello));
+	write_block(MEMORY_PAGE_SIZE-1, hello, sizeof(hello));
+	read_block(bufff, MEMORY_PAGE_SIZE-1, sizeof(hello));
 
 	for (i=0; i<sizeof(hello);i+=8)
 		if (bufff[i]!=hello[i]) {
@@ -485,6 +757,8 @@ bool memory::test()
 int main()
 {
 	memory amem;
+	printf(".");
+	printf("%d", amem.read_word(0));
 	if (amem.test())
 		std::cerr << "memory test passed!" << std::endl;
 	else

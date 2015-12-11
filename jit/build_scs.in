@@ -1,0 +1,85 @@
+#! /bin/sh
+
+usage()
+{
+cat << EOF
+Usage: build_scs [-c] [-v] [-l num] <file name>
+  -c : to count in simulation
+  -v : verbose simulation
+  -l : K instructions per page, default 1K
+  file name : the MIPS ELF32 program to translate
+EOF
+exit 1;
+}
+
+if test $# -lt 1; then
+usage;
+fi
+
+#the last argument is the name
+eval progname=\${$#};
+
+if test ! -r ${progname} || test -d ${progname}; then
+	echo "Error: Cannot open file ${progname}!";
+	exit 1;
+fi
+
+# separate the prognam from the arguments
+opts=;
+nopt=1;
+for i do
+  if test $nopt -eq $#; then
+	break;
+  else
+    opts="$opts $i";
+	nopt=`expr $nopt + 1`;
+  fi
+done;
+
+prefix=@prefix@;
+shared=@prefix@/share/SimIt-MIPS;
+benchname=`basename ${progname}`;
+benchdir=`dirname ${progname}`;
+benchfull="`cd \"$benchdir\" 2>/dev/null && pwd || echo \"$benchdir\"`/$benchname";
+targetdir=${benchname}.scs;
+
+# remove the old directory if exists
+if test -d ${targetdir}; then
+	\rm -rf ${targetdir} 
+	if test ! $? = 0; then
+		echo "Error: Cannot remove directory ${targetdir}!";
+		exit 1;
+	fi
+fi
+
+# create the directory
+mkdir -m 755 ${targetdir};
+if test ! $? = 0; then
+	echo "Error: Cannot create directory ${targetdir}!";
+	exit 1;
+fi
+# create a symbolic link
+ln -s ${benchfull} ${targetdir}/${benchname}.lnk;
+
+# decompile the benchmark
+cd ${targetdir};
+echo "Translating ${progname}";
+echo "${prefix}/bin/emips_decomp ${opts} ${benchname}.lnk";
+eval "${prefix}/bin/emips_decomp ${opts} ${benchname}.lnk";
+if test ! $? = 0; then
+	echo "Error: Fail to translate ${progname}!";
+	exit 1;
+fi
+
+# copy other files into the folder
+cp ${shared}/* .
+echo "Building static-compiled simulator, this may take several minutes ...";
+
+echo "#! /bin/sh" > $benchname;
+echo "exec `pwd`/prog_bin `pwd`/${benchname}.lnk \$* " >> $benchname;
+chmod 744 $benchname;
+
+eval "make";
+
+
+cd ..

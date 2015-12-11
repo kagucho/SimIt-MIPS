@@ -601,8 +601,8 @@ char *emitc_lui(char *buf, emulator_t *emm, target_addr_t curpc, target_addr_t f
 {
 	target_inst_t inst = emm->mem->read_word_fast(curpc);
 	buf += sprintf(buf, "\n"
-	"    WRITE_GPR(((u_hword_t)%u<<16), %u);\n"
-	"	", ((inst>>0)&65535), ((inst>>16)&31));
+	"    WRITE_GPR(((u_hword_t)%u<<16), %u); //%x\n"
+	"	", ((inst>>0)&65535), ((inst>>16)&31), inst);
 	return buf;
 }
 

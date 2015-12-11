@@ -17,10 +17,10 @@
 #include <csignal>
 #include <cstring>
 #include <cstdlib>
-#include <mips_emul.hpp>
 #include <config.h>
 
-#define SIM_SAFE
+#include "compiled_run.hpp"
+#include "Scompiled_all.hpp"
 
 #if HAVE_SYS_RESOURCE_H && HAVE_SYS_TIME_H
 #include <sys/time.h>
@@ -28,26 +28,8 @@
 #include <unistd.h>
 #endif
 
+uint64_t njumps;
 using namespace emulator;
-
-static void usage(char *fname)
-{
-	char *cp;
-	if ((cp = strrchr(fname, '/'))!=NULL) cp++;
-	else cp = fname;
-	fprintf(stderr, 
-		"usage : %s [-d] [-v] [-m num] [-h]"
-		" <file name> <args...>\n"
-		"  -d : debugging mode\n"
-		"  -v : verbose\n"
-#ifdef SIM_SAFE
-		"  -gdb addr : gdb debugging\n"
-#endif
-		"  -m : maximum number of instructions to simulate\n"
-		"  -h : print this message and quit\n"
-		"  file name : the MIPS ELF32 program to simulate\n"
-		"  args : arguments to the program\n", cp);
-}
 
 static mips_emulator *mltr = NULL;
 
@@ -58,9 +40,6 @@ static void sig_handler(int signum)
 
 	if (signum==SIGINT) {
 		mltr->interrupt();
-	}
-	else if (signum==SIGUSR1) {
-		mltr->seg_fault();
 	}
 }
 
@@ -78,47 +57,25 @@ int main(int argc, char *argv[], char *envp[])
 	uint64_t max_inum = (uint64_t)-1;
 	void (*prev_sig_handler)(int);
 
-	for(i = 1; i < argc; i++)
-	{
-		if(strcmp(argv[i], "-d") == 0) debugging = true; else
-		if(strcmp(argv[i], "-v") == 0) verbose = true; else
-		if(strcmp(argv[i], "-m") == 0) max_inum = ato_uint64(argv[++i]); else
-#ifdef SIM_SAFE
-		if(strcmp(argv[i], "-gdb") == 0) gdb=true,in_addr = argv[++i]; else
-#endif
-		if(strcmp(argv[i], "-h") == 0 || argv[i][0]=='-') 
-			{usage(argv[0]); return 0;} else
-		if(!prog_name)
-		{
-			prog_name = argv[i];
-			break;
-		}	
-	}
-	
 	if ((bin_name = strrchr(argv[0], '/'))!=NULL) bin_name++; 
 	else bin_name = argv[0];
+
+	if (argc<2) {
+		fprintf(stderr, "%s: Missing target program path.\n");
+		exit(1);
+	}
+
+	prog_name = argv[1];
 
 	/* emulator instance */
 	if(prog_name)
 	{
-
-		mltr = new mips_emulator(verbose);
-		signal(SIGUSR1, sig_handler);
+		//printf("PNtrue\n");
+		mltr = new mips_emulator(VERBOSE);
 		prev_sig_handler = signal(SIGINT, sig_handler); 
 
-		mltr->load_program(prog_name, argc - i, argv + i, envp);
-
-		if(debugging){
-			mltr->debug();
-		}
-#ifdef SIM_SAFE
-		else if (gdb) {
-			mltr->gdb(in_addr);
-		}
-#endif
-		else {
-
-			fprintf(stderr, "%s: Simulation starts ...\n", bin_name);
+		mltr->load_program(prog_name, argc - 1, argv + 1, envp);
+		fprintf(stderr, "%s: Simulation starts ...\n", bin_name);
 
 #if HAVE_SYS_RESOURCE_H && HAVE_SYS_TIME_H
 			struct timeval begin_u, end_u, begin_s, end_s;
@@ -129,11 +86,7 @@ int main(int argc, char *argv[], char *envp[])
 			begin_s = usg.ru_stime;
 #endif
 
-			uint64_t icount;
-			if (max_inum==(uint64_t)-1)
-				icount = mltr->run();
-			else
-				icount = mltr->run_count(max_inum);
+			run_compiled(mltr);
 
 #if HAVE_SYS_RESOURCE_H && HAVE_SYS_TIME_H
 			getrusage(RUSAGE_SELF, &usg);
@@ -156,30 +109,21 @@ int main(int argc, char *argv[], char *envp[])
 
 #if HAVE_SYS_RESOURCE_H && HAVE_SYS_TIME_H
 			fprintf(stderr, "Total user time  : %.3f sec.\n"
-				"Total system time: %.3f sec.\n"
-				"Simulation speed : %.3e inst/sec.\n",
-				user_time, sys_time, icount/(user_time+sys_time));
-#endif
+				"Total system time: %.3f sec.\n",
+				user_time, sys_time);
+#ifdef COUNT_COMPILED	
+			fprintf(stderr, "Simulation speed : %.3e inst/sec.\n",
+				mltr->get_total_count()/(user_time+sys_time));
 			mltr->dump_instruction_counters(stderr);
-
-#ifdef EMUMEM_HASH
-			fprintf(stderr, "Total 4K memory pages allocated : %d\n",
-				mltr->mem->get_page_count());
 #endif
-
-#ifdef EMUMEM_MMAP
-			fprintf(stderr, "Total 4M memory pages allocated : %d\n",
-				mltr->mem->get_page_count());
 #endif
+			fprintf(stderr, "Total long jumps : %lld\n", njumps);
 
-		}
+			if(prev_sig_handler != SIG_ERR) 
+			  signal(SIGINT, SIG_DFL);
 
-		if(prev_sig_handler != SIG_ERR) signal(SIGINT, SIG_DFL);
-		signal(SIGUSR1, SIG_IGN);
-
-		delete mltr;
+			delete mltr;
 	}
-	else usage(argv[0]);
-
+	
 	return 0;
 }

@@ -16,7 +16,6 @@
 #define MIPS_EMUL_H
 
 #include "emumem.h"
-#include <cstdio>
 
 /*static const char * const mnemonic_table[INST_TOTAL] = {
   "add", "addi", "addiu", "addu", "sub", "subu",
@@ -245,6 +244,11 @@ namespace emulator {
 
   protected:
 
+	/* if an instruction is BREAK */
+	bool is_break_inst(mips_inst_t inst) {
+		return (inst & 0xFC00003F)==0x0000000D;
+	}
+
 	/* execute a single instruction */
 	void execute(mips_inst_t inst);
 
@@ -255,7 +259,7 @@ namespace emulator {
 	mips_addr_t nextPC; 
 
 	/* instruction counter */
-	uint64_t icount,ccount;
+	uint64_t icount, ccount;
 	//uint64_t counters[INST_TOTAL];
 	int retcode;		// valid on ST_EXIT
 	enum status_t  status;

@@ -310,7 +310,7 @@ ac_includes_default="\
 #endif"
 
 ac_default_prefix="`pwd`/build"
-ac_subst_vars='SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS INSTALL_PROGRAM INSTALL_SCRIPT INSTALL_DATA CYGPATH_W PACKAGE VERSION ACLOCAL AUTOCONF AUTOMAKE AUTOHEADER MAKEINFO AMTAR install_sh STRIP ac_ct_STRIP INSTALL_STRIP_PROGRAM mkdir_p AWK SET_MAKE am__leading_dot CC CFLAGS LDFLAGS CPPFLAGS ac_ct_CC EXEEXT OBJEXT DEPDIR am__include am__quote AMDEP_TRUE AMDEP_FALSE AMDEPBACKSLASH CCDEPMODE am__fastdepCC_TRUE am__fastdepCC_FALSE CXX CXXFLAGS ac_ct_CXX CXXDEPMODE am__fastdepCXX_TRUE am__fastdepCXX_FALSE RANLIB ac_ct_RANLIB LEX LEXLIB LEX_OUTPUT_ROOT YACC SED FP_OPTION CPP EGREP LIBOBJS LTLIBOBJS'
+ac_subst_vars='SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS INSTALL_PROGRAM INSTALL_SCRIPT INSTALL_DATA CYGPATH_W PACKAGE VERSION ACLOCAL AUTOCONF AUTOMAKE AUTOHEADER MAKEINFO AMTAR install_sh STRIP ac_ct_STRIP INSTALL_STRIP_PROGRAM mkdir_p AWK SET_MAKE am__leading_dot CC CFLAGS LDFLAGS CPPFLAGS ac_ct_CC EXEEXT OBJEXT DEPDIR am__include am__quote AMDEP_TRUE AMDEP_FALSE AMDEPBACKSLASH CCDEPMODE am__fastdepCC_TRUE am__fastdepCC_FALSE CXX CXXFLAGS ac_ct_CXX CXXDEPMODE am__fastdepCXX_TRUE am__fastdepCXX_FALSE RANLIB ac_ct_RANLIB LEX LEXLIB LEX_OUTPUT_ROOT YACC SED FP_OPTION ENABLE_JIT_TRUE ENABLE_JIT_FALSE CPP EGREP LIBOBJS LTLIBOBJS'
 ac_subst_files=''
 
 # Initialize some variables set by options.
@@ -1605,7 +1605,7 @@ fi
 
 # Define the identity of the package.
  PACKAGE=SimIt-MIPS
- VERSION=1.0a
+ VERSION=1.0
 
 
 cat >>confdefs.h <<_ACEOF
@@ -3860,7 +3860,7 @@ echo "${ECHO_T}yes" >&6
 echo "${ECHO_T}no" >&6
 	fi
  then
-    cxxflags="-O3 -fomit-frame-pointer"
+    cxxflags="-Wall -O3 -fomit-frame-pointer"
 else
 	{ echo "$as_me:$LINENO: WARNING: \"CXX is not g++, cannot build compiled simulator\"" >&5
 echo "$as_me: WARNING: \"CXX is not g++, cannot build compiled simulator\"" >&2;}
@@ -3992,21 +3992,175 @@ echo "${ECHO_T}no" >&6
 
 fi
 
-# --enable-mmap
-#
-#AC_ARG_ENABLE([mmap],
-#	AC_HELP_STRING([--enable-mmap],
-#		[use mmap for fast memory emulation (default=no)]),
-#	simit_cv_enable_mmap=$enableval,
-#	simit_cv_enable_mmap=no)
-#
-#AC_CACHE_CHECK([use mmap for fast memory emulation],
-#	simit_cv_enable_mmap,
-#	simit_cv_enable_mmap=no)
-#
-#if test $simit_cv_enable_mmap = yes; then
-#    AC_DEFINE(ENABLE_MMAP, 1, [Define to 1 if you want to use mmap for fast memory emulation])
-#fi
+# check if user wants jit
+#AC_ARG_ENABLE(jit,
+#  [  --enable-jit	Build just-in-time compiled-emulator],
+#  [case "${enableval}" in
+#     yes) jit=true ;;
+#     no)  jit=false ;;
+#     *) AC_MSG_ERROR(bad value ${enableval} for --enable-jit) ;;
+#   esac],[jit=false])
+
+jit=true;
+
+if test "x$jit" = xtrue; then
+	echo "$as_me:$LINENO: checking for dlerror in -ldl" >&5
+echo $ECHO_N "checking for dlerror in -ldl... $ECHO_C" >&6
+if test "${ac_cv_lib_dl_dlerror+set}" = set; then
+  echo $ECHO_N "(cached) $ECHO_C" >&6
+else
+  ac_check_lib_save_LIBS=$LIBS
+LIBS="-ldl  $LIBS"
+cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+/* Override any gcc2 internal prototype to avoid an error.  */
+#ifdef __cplusplus
+extern "C"
+#endif
+/* We use char because int might match the return type of a gcc2
+   builtin and then its argument prototype would still apply.  */
+char dlerror ();
+int
+main ()
+{
+dlerror ();
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext conftest$ac_exeext
+if { (eval echo "$as_me:$LINENO: \"$ac_link\"") >&5
+  (eval $ac_link) 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } &&
+	 { ac_try='test -z "$ac_c_werror_flag"
+			 || test ! -s conftest.err'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } &&
+	 { ac_try='test -s conftest$ac_exeext'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+  ac_cv_lib_dl_dlerror=yes
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+ac_cv_lib_dl_dlerror=no
+fi
+rm -f conftest.err conftest.$ac_objext \
+      conftest$ac_exeext conftest.$ac_ext
+LIBS=$ac_check_lib_save_LIBS
+fi
+echo "$as_me:$LINENO: result: $ac_cv_lib_dl_dlerror" >&5
+echo "${ECHO_T}$ac_cv_lib_dl_dlerror" >&6
+if test $ac_cv_lib_dl_dlerror = yes; then
+  jit=true
+else
+  jit=false; { { echo "$as_me:$LINENO: error: libdl not found, disable JIT" >&5
+echo "$as_me: error: libdl not found, disable JIT" >&2;}
+   { (exit 1); exit 1; }; }
+fi
+
+	echo "$as_me:$LINENO: checking for pthread_testcancel in -lpthread" >&5
+echo $ECHO_N "checking for pthread_testcancel in -lpthread... $ECHO_C" >&6
+if test "${ac_cv_lib_pthread_pthread_testcancel+set}" = set; then
+  echo $ECHO_N "(cached) $ECHO_C" >&6
+else
+  ac_check_lib_save_LIBS=$LIBS
+LIBS="-lpthread  $LIBS"
+cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+/* Override any gcc2 internal prototype to avoid an error.  */
+#ifdef __cplusplus
+extern "C"
+#endif
+/* We use char because int might match the return type of a gcc2
+   builtin and then its argument prototype would still apply.  */
+char pthread_testcancel ();
+int
+main ()
+{
+pthread_testcancel ();
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext conftest$ac_exeext
+if { (eval echo "$as_me:$LINENO: \"$ac_link\"") >&5
+  (eval $ac_link) 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } &&
+	 { ac_try='test -z "$ac_c_werror_flag"
+			 || test ! -s conftest.err'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; } &&
+	 { ac_try='test -s conftest$ac_exeext'
+  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+  (eval $ac_try) 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; }; then
+  ac_cv_lib_pthread_pthread_testcancel=yes
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+ac_cv_lib_pthread_pthread_testcancel=no
+fi
+rm -f conftest.err conftest.$ac_objext \
+      conftest$ac_exeext conftest.$ac_ext
+LIBS=$ac_check_lib_save_LIBS
+fi
+echo "$as_me:$LINENO: result: $ac_cv_lib_pthread_pthread_testcancel" >&5
+echo "${ECHO_T}$ac_cv_lib_pthread_pthread_testcancel" >&6
+if test $ac_cv_lib_pthread_pthread_testcancel = yes; then
+  jit=true
+else
+  jit=false; { { echo "$as_me:$LINENO: error: libpthread not found, disable JIT" >&5
+echo "$as_me: error: libpthread not found, disable JIT" >&2;}
+   { (exit 1); exit 1; }; }
+fi
+
+fi
+
+
+
+if test x$jit = xtrue; then
+  ENABLE_JIT_TRUE=
+  ENABLE_JIT_FALSE='#'
+else
+  ENABLE_JIT_TRUE='#'
+  ENABLE_JIT_FALSE=
+fi
+
+
 
 # Check for gmp
 #AC_CHECK_LIB(gmp, __gmpz_init, , [AC_MSG_ERROR(
@@ -8014,7 +8168,7 @@ fi
 rm -f conftest.mmap
 
 
-                              ac_config_files="$ac_config_files Makefile decgen/Makefile emulator/Makefile"
+                                                                                ac_config_files="$ac_config_files Makefile issgen/Makefile decgen/Makefile emulator/Makefile jit/build_dll.hpp jit/build_scs jit/Makefile jit/decomp_src/Makefile"
 
 cat >confcache <<\_ACEOF
 # This file is a shell script that caches the results of configure
@@ -8125,6 +8279,13 @@ if test -z "${am__fastdepCXX_TRUE}" && test -z "${am__fastdepCXX_FALSE}"; then
   { { echo "$as_me:$LINENO: error: conditional \"am__fastdepCXX\" was never defined.
 Usually this means the macro was only invoked conditionally." >&5
 echo "$as_me: error: conditional \"am__fastdepCXX\" was never defined.
+Usually this means the macro was only invoked conditionally." >&2;}
+   { (exit 1); exit 1; }; }
+fi
+if test -z "${ENABLE_JIT_TRUE}" && test -z "${ENABLE_JIT_FALSE}"; then
+  { { echo "$as_me:$LINENO: error: conditional \"ENABLE_JIT\" was never defined.
+Usually this means the macro was only invoked conditionally." >&5
+echo "$as_me: error: conditional \"ENABLE_JIT\" was never defined.
 Usually this means the macro was only invoked conditionally." >&2;}
    { (exit 1); exit 1; }; }
 fi
@@ -8573,8 +8734,13 @@ do
   case "$ac_config_target" in
   # Handling of arguments.
   "Makefile" ) CONFIG_FILES="$CONFIG_FILES Makefile" ;;
+  "issgen/Makefile" ) CONFIG_FILES="$CONFIG_FILES issgen/Makefile" ;;
   "decgen/Makefile" ) CONFIG_FILES="$CONFIG_FILES decgen/Makefile" ;;
   "emulator/Makefile" ) CONFIG_FILES="$CONFIG_FILES emulator/Makefile" ;;
+  "jit/build_dll.hpp" ) CONFIG_FILES="$CONFIG_FILES jit/build_dll.hpp" ;;
+  "jit/build_scs" ) CONFIG_FILES="$CONFIG_FILES jit/build_scs" ;;
+  "jit/Makefile" ) CONFIG_FILES="$CONFIG_FILES jit/Makefile" ;;
+  "jit/decomp_src/Makefile" ) CONFIG_FILES="$CONFIG_FILES jit/decomp_src/Makefile" ;;
   "depfiles" ) CONFIG_COMMANDS="$CONFIG_COMMANDS depfiles" ;;
   "config.h" ) CONFIG_HEADERS="$CONFIG_HEADERS config.h:config.h.in" ;;
   *) { { echo "$as_me:$LINENO: error: invalid argument: $ac_config_target" >&5
@@ -8712,6 +8878,8 @@ s,@LEX_OUTPUT_ROOT@,$LEX_OUTPUT_ROOT,;t t
 s,@YACC@,$YACC,;t t
 s,@SED@,$SED,;t t
 s,@FP_OPTION@,$FP_OPTION,;t t
+s,@ENABLE_JIT_TRUE@,$ENABLE_JIT_TRUE,;t t
+s,@ENABLE_JIT_FALSE@,$ENABLE_JIT_FALSE,;t t
 s,@CPP@,$CPP,;t t
 s,@EGREP@,$EGREP,;t t
 s,@LIBOBJS@,$LIBOBJS,;t t
@@ -9436,4 +9604,5 @@ if test "$no_create" != yes; then
   # would make configure fail if this is the last instruction.
   $ac_cs_success || { (exit 1); exit 1; }
 fi
+
 

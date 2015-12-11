@@ -20,474 +20,453 @@
 #include <misc.hpp>
 #include <cstring>
 
-#if !defined(HAVE_MMAP) || !defined(HAVE_SYS_MMAN_H)
-#define EMUMEM_SAFE
-#undef  EMUMEM_FAST
-#endif
-
-// exclusive option
-#ifdef EMUMEM_FAST
-#undef EMUMEM_SAFE
-#endif
-
-
-
 namespace emulator {
 
 /* these are the memory page protection flags */
-const unsigned int MEMORY_PAGE_READABLE=1;
-const unsigned int MEMORY_PAGE_WRITABLE=2;
-const unsigned int MEMORY_PAGE_EXECUTABLE=4;
-const unsigned int MEMORY_PAGE_IOMAPPED=8;
-const unsigned int MEMORY_PAGE_CACHEABLE=16;
+/* flag value -> meaning
+   1   --> normal but empty page, meaning storage not allocated yet
+   2   --> remapped memory
+   4   --> bad address, bus error, other bits must be clear
 
-#ifdef EMUMEM_SAFE
-const unsigned int MEMORY_PAGE_SIZE_BITS = 12;
-const unsigned int MEMORY_PAGE_SIZE = 1 << MEMORY_PAGE_SIZE_BITS;
+   16  --> normal page, readable
+   32  --> normal page, writable
+   64  --> normal page, executable
 
-const unsigned int PRIMARY_MEMORY_TABLE_BITS = 12;
-const unsigned int PRIMARY_MEMORY_TABLE_SIZE = 1 << PRIMARY_MEMORY_TABLE_BITS;
-const unsigned int SECONDARY_MEMORY_TABLE_BITS = 
-	sizeof(target_addr_t)*8- PRIMARY_MEMORY_TABLE_BITS - MEMORY_PAGE_SIZE_BITS;
-const unsigned int SECONDARY_MEMORY_TABLE_SIZE =
-	1 << SECONDARY_MEMORY_TABLE_BITS;
+   16, 32, 64 can be combined.
+   1, 2, 4 cannot be combined, if any of these bits is set,
+   then 16, 32, 64 will be stealthily shifted by 12 bits
+*/
+const unsigned int MEMORY_PAGE_EMPTY      = 1;
+const unsigned int MEMORY_PAGE_REMAPPED   = 2;
+const unsigned int MEMORY_PAGE_UNAVAIL    = 4;
+const unsigned int MEMORY_PAGE_READABLE   = 16;
+const unsigned int MEMORY_PAGE_WRITABLE   = 32;
+const unsigned int MEMORY_PAGE_EXECUTABLE = 64; // not really useful
 
-#define MEM_PAGE_BOUNDARY MEMORY_PAGE_SIZE
+/* internal macros, user should not use these */
+#define MEMORY_PAGE_PERM_SHIFT 12
+#define MEMORY_PAGE_PERM_MASK  \
+	(MEMORY_PAGE_READABLE | MEMORY_PAGE_WRITABLE | MEMORY_PAGE_EXECUTABLE)
+#define MEMORY_PAGE_SLOW \
+	(MEMORY_PAGE_EMPTY | MEMORY_PAGE_REMAPPED | MEMORY_PAGE_UNAVAIL)
+#define MEMORY_PAGE_AVAIL_SLOW \
+	(MEMORY_PAGE_EMPTY | MEMORY_PAGE_REMAPPED)
 
+/* these are memory paging parameter, default page size = 64KB */
+const unsigned int MEMORY_PAGE_SIZE_BITS  = 16;
+const unsigned int MEMORY_PAGE_SIZE       = 1 << MEMORY_PAGE_SIZE_BITS;
+const unsigned int MEMORY_PAGE_TABLE_BITS = 
+	sizeof(target_addr_t) * 8 - MEMORY_PAGE_SIZE_BITS;
+const unsigned int MEMORY_PAGE_TABLE_SIZE = 1 << MEMORY_PAGE_TABLE_BITS;
+
+
+
+typedef struct memory_page_table_entry_t
+{
+	unsigned int flag;
+	byte_t *ptr;
+} memory_page_table_entry_t;
+
+
+const unsigned int MEMORY_ERROR_READ_PERM   = MEMORY_PAGE_READABLE;
+const unsigned int MEMORY_ERROR_WRITE_PERM  = MEMORY_PAGE_WRITABLE;
+const unsigned int MEMORY_ERROR_EXEC_PERM   = MEMORY_PAGE_EXECUTABLE;
+const unsigned int MEMORY_ERROR_BADADDR     = MEMORY_PAGE_UNAVAIL;
+const unsigned int MEMORY_ERROR_MISALIGN    = 128;
+
+typedef struct memory_fault_info_t
+{
+	target_addr_t addr;
+	unsigned int code;
+} memory_fault_info_t;
+
+/* an abstract class as page remapping interface */
 class memory_ext_interface {
 
   public:
 
-	virtual byte_t read_byte(target_addr_t addr) = 0;
-	virtual void write_byte(target_addr_t addr, byte_t value) = 0;
+	virtual byte_t read_byte(target_addr_t addr,
+							memory_fault_info_t *f) = 0;
+	virtual void write_byte(target_addr_t addr, byte_t value,
+							memory_fault_info_t *f) = 0;
 	
-	virtual halfword_t read_half_word(target_addr_t addr) = 0;
-	virtual	void write_half_word(target_addr_t addr, halfword_t value) = 0;
+	virtual halfword_t read_halfword(target_addr_t addr,
+							memory_fault_info_t *f) = 0;
+	virtual	void write_halfword(target_addr_t addr, halfword_t value,
+							memory_fault_info_t *f) = 0;
 
-	virtual word_t read_word(target_addr_t addr) = 0;
-	virtual void write_word(target_addr_t addr, word_t value) = 0;
+	virtual word_t read_word(target_addr_t addr,
+							memory_fault_info_t *f) = 0;
+	virtual void write_word(target_addr_t addr, word_t value,
+							memory_fault_info_t *f) = 0;
 
-	virtual	dword_t read_dword(target_addr_t addr) = 0;
-	virtual	void write_dword(target_addr_t addr, dword_t value) = 0;
-
-	virtual void read_block(void *buf, target_addr_t, unsigned int size) = 0;
-	virtual void write_block(target_addr_t, void *buf, unsigned int size) = 0;
-	virtual void write_set(target_addr_t, byte_t value, unsigned int size) = 0;
-
+	virtual	dword_t read_dword(target_addr_t addr,
+							memory_fault_info_t *f) = 0;
+	virtual	void write_dword(target_addr_t addr, dword_t value,
+							memory_fault_info_t *f) = 0;
+	
+	// returns the number of bytes processed,
+	// on error, can be less than argument size
+	virtual unsigned int read_block(void *buf, target_addr_t,
+							unsigned int size, memory_fault_info_t *f) = 0;
+	virtual unsigned int write_block(target_addr_t, void *buf,
+							unsigned int size, memory_fault_info_t *f) = 0;
+	virtual unsigned int set_block(target_addr_t, byte_t value,
+							unsigned int size, memory_fault_info_t *f) = 0;
 };
-
-typedef struct memory_page_table_entry_t
-{
-	target_addr_t addr;
-	byte_t *storage;
-	unsigned access;
-	memory_ext_interface *ext;
-
-} memory_page_table_entry_t;
-
-typedef struct
-{
-	memory_page_table_entry_t *pte[SECONDARY_MEMORY_TABLE_SIZE];
-} secondary_memory_hash_table_t;
-
-#else //#ifdef EMUMEM_FAST
-const unsigned int MMAP_FRAME_BITS = 10;
-const unsigned int MMAP_FRAME_NUM = 1 << MMAP_FRAME_BITS;
-const unsigned int MMAP_FRAME_SHIFT = sizeof(target_addr_t)*8 - MMAP_FRAME_BITS;
-const unsigned int MMAP_FRAME_SIZE = 1 << MMAP_FRAME_SHIFT;
-const unsigned int MMAP_OFFSET_MASK = MMAP_FRAME_SIZE - 1;
-#define MEM_PAGE_BOUNDARY MMAP_FRAME_SIZE
-#endif
-
 
 class memory
 {
 	public:
-		/* constructor */
-		memory();
+	/* constructor, 
+	   def_perm sets the default permission of all pages. */
+	memory(unsigned int def_valid = MEMORY_PAGE_PERM_MASK);
 
-		/* destructor */
-		~memory();
+	/* destructor */
+	~memory();
 
-		/* copy constructor, not implemented for fast mode*/
-		memory(const memory&);
+	/* copy constructor, not implemented for fast mode*/
+	memory(const memory&);
 
-		/* free all memory pages */
-		void reset();
+	/* free all memory pages, but preserve remapping and permissions */
+	void reset();
 
-#ifdef EMUMEM_SAFE
-		target_addr_t get_fault_addr() const {return fault_addr;}
-		unsigned get_fault_action() const {return fault_action;}
-		unsigned get_fault_access() const {return fault_access;}
+	/* check fault information */
+	target_addr_t get_fault_addr() const {return fault_info.addr;}
+	unsigned int get_fault_code() const {return fault_info.code;}
 
-		/* address translation */
-		byte_t * translate(target_addr_t addr, unsigned ac)
-		{
-			target_addr_t offset = addr % MEMORY_PAGE_SIZE;
-			memory_page_table_entry_t *pte = get_page(addr);
+	// get the permission bits of a page
+	unsigned int get_page_permission(target_addr_t addr) const; 
+	void set_page_permission(target_addr_t addr, unsigned int perm);
+	void set_region_permission(target_addr_t addr,
+					unsigned int size, unsigned int perm);
 
-			if (pte->access & MEMORY_PAGE_IOMAPPED) {
-				intf = pte->ext;
-				return NULL;
-			}
-			if ((ac & pte->access)!=ac) {
-				error(addr, pte->access, ac);
-			}
-			return pte->storage + offset;
+
+	// remap and unmap a page, page is unavailable after successful unmap
+	void remap_page(target_addr_t addr,
+					memory_ext_interface *mif, unsigned int perm);
+	void unmap_page(target_addr_t addr);
+
+	// remap and unmap a region
+	void remap_region(target_addr_t addr, unsigned int size,
+					memory_ext_interface *mif, unsigned int perm);
+	void unmap_region(target_addr_t addr, unsigned int size);
+
+
+	// mark a page as available or unavailable
+	void mark_page_available(target_addr_t addr, unsigned int perm);
+	void mark_page_unavailable(target_addr_t addr);
+
+	// mark a region as available or unavailable
+	void mark_region_available(target_addr_t addr,
+					unsigned int size, unsigned int perm);
+	void mark_region_unavailable(target_addr_t addr, unsigned int size);
+
+
+	/*******************************************************************
+		Below are the main interface functions.
+	*******************************************************************/
+
+	byte_t read_byte(target_addr_t addr,
+			memory_fault_info_t *f = NULL)
+	{
+		const memory_page_table_entry_t *pte = get_page(addr);
+		/* if empty (not allocated), remapped, bad, or not readable */
+		if (!(pte->flag & MEMORY_PAGE_READABLE)) {
+			return read_byte_slow(addr, f);
 		}
+		return *(pte->ptr + addr);
+	}
 
-		/* fast address translation using cached page pointer
-		 * this assumes that the access mode is read|execute (inst. fetch)
-		 */
-		byte_t * translate_fast(target_addr_t addr)
+	void write_byte(target_addr_t addr, byte_t value,
+			memory_fault_info_t *f = NULL)
+	{
+		const memory_page_table_entry_t *pte = get_page(addr);
+		/* if empty (not allocated), remapped, bad, or not writable */
+		if (!(pte->flag & MEMORY_PAGE_WRITABLE))
+			write_byte_slow(addr, value, f);
+		else
+			*(pte->ptr + addr) = value;
+	}
+
+	word_t read_word_fast(target_addr_t addr,
+			memory_fault_info_t *f = NULL)
+	{
+		return read_word(addr, f);
+	}
+
+	word_t read_word(target_addr_t addr,
+			memory_fault_info_t *f = NULL)
+	{
+		/* if crossing page boundary */
+		if (cross_page_boundary(addr, sizeof(word_t)))
 		{
- 			memory_page_table_entry_t *pte; 
-			target_addr_t index = addr >> MEMORY_PAGE_SIZE_BITS; 
-			target_addr_t offset = addr % MEMORY_PAGE_SIZE; 
-
-		    if (cache_valid & (cached_addr==index))
-				pte = cached_pte; 
-		    else {
-
-				cached_pte = pte = get_page(addr);
-				cached_addr = index;
-
-				if (pte->access & MEMORY_PAGE_IOMAPPED) {
-					intf = pte->ext;
-					cache_valid = 0; // do not cache io mapped
-					return NULL;
-				}
-
-				cache_valid = (unsigned)-1;
-				unsigned def_ac = MEMORY_PAGE_READABLE|MEMORY_PAGE_EXECUTABLE;
-				if ((pte->access & def_ac) != def_ac) {
-					error(addr, pte->access, def_ac);
-					cache_valid = 0; // do not cache bad access
-				}
-			}
-
-			return pte->storage + offset;
+			return read_word_slow(addr, f);
 		}
-
-		/* set the permission bits of a page */
-		unsigned get_page_permission(target_addr_t addr)
+		else 
 		{
-			return get_page(addr)->access;
-		}
-
-		/* set the permission bits of a page, does not affect mapped bit */
-		void set_page_permission(target_addr_t addr, unsigned ac)
-		{
-			unsigned old_access = get_page_permission(addr);
-			get_page(addr)->access = ac | (old_access & MEMORY_PAGE_IOMAPPED);
-			cache_valid = 0; // reset cache in case affected
-		}
-
-		void set_permission(target_addr_t addr, unsigned size, unsigned ac)
-		{
-			target_addr_t aligned_addr = align_to_page_boundary(addr);
-			for (;aligned_addr<addr+size; aligned_addr+=MEMORY_PAGE_SIZE) {
-				set_page_permission(aligned_addr, ac);
-			}
-		}
-
-		void map_page(target_addr_t addr, memory_ext_interface *if0)
-		{
- 			memory_page_table_entry_t *pte = get_page(addr);
-			pte->ext = if0;
-			pte->access |= MEMORY_PAGE_IOMAPPED;
-		}
-
-		void unmap_page(target_addr_t addr)
-		{
- 			memory_page_table_entry_t *pte = get_page(addr);
-			pte->ext = NULL;
-			pte->access &= ~MEMORY_PAGE_IOMAPPED;
-		}
-
-#endif // EMUMEM_SAFE
-
-#ifdef EMUMEM_FAST
-		/* address translation */
-		byte_t *translate(target_addr_t addr, unsigned useless)
-		{
-			const target_addr_t frame_index = addr >> MMAP_FRAME_SHIFT;
-			byte_t * const frame_start = mmap_frame[frame_index];
-
-			if (!frame_start) {
-				byte_t * const frame_start = allocate_frame(frame_index);
-				return frame_start + addr;
-			}
-
-			return frame_start + addr;
-		}
-
-		/* fast address translation */
-		byte_t *translate_fast(target_addr_t addr)
-		{
-			return translate(addr, 0);
-		}
-#endif
-
-		byte_t read_byte(target_addr_t addr)
-		{
-			byte_t *ptr = translate(addr, MEMORY_PAGE_READABLE);
-
-#ifdef EMUMEM_SAFE
-			return ptr?*ptr:intf->read_byte(addr);
-#else 
-			return *ptr;
-#endif
-		}
-
-		void write_byte(target_addr_t addr, byte_t value)
-		{
-			byte_t *ptr = translate(addr, MEMORY_PAGE_WRITABLE);
-#ifdef EMUMEM_SAFE
-			if (ptr) *ptr = value; else intf->write_byte(addr, value);
-#else
-			*ptr = value;
-#endif
-		}
-
-		word_t read_word(target_addr_t addr)
-		{
-
-			word_t value;
-			byte_t *ptr;
-
-#ifdef EMUMEM_SAFE
-			/* if crossing page boundary */
-			if ((addr%MEM_PAGE_BOUNDARY) > MEM_PAGE_BOUNDARY-sizeof(word_t)) {
-				read_block(&value, addr, sizeof(word_t));
-			}
+			const memory_page_table_entry_t *pte = get_page(addr);
+			/* if empty (not allocated), remapped, bad, or not readable */
+			if (!(pte->flag & MEMORY_PAGE_READABLE))
+				return read_word_slow(addr, f);
 			else
-			{
-				ptr = translate(addr, MEMORY_PAGE_READABLE);
-				value = ptr?*reinterpret_cast<word_t*>(ptr):
-							intf->read_word(addr);
-			}
-#else 
-			ptr = translate(addr, MEMORY_PAGE_READABLE);
-			value = *reinterpret_cast<word_t*>(ptr);
-#endif
-
 #if WORDS_BIGENDIAN==TARGET_LITTLE_ENDIAN
-			return swap_word(value);
+				return swap_word(*reinterpret_cast<word_t *>
+									(pte->ptr + addr));
 #else
-			return value;
+				return *reinterpret_cast<word_t*>(pte->ptr + addr);
 #endif
 		}
+	}
 
-		void write_word(target_addr_t addr, word_t value)
+	void write_word(target_addr_t addr, word_t value,
+			memory_fault_info_t *f = NULL)
+	{
+		/* if crossing page boundary */
+		if (cross_page_boundary(addr, sizeof(word_t)))
 		{
-			word_t val;
-
-#if WORDS_BIGENDIAN==TARGET_LITTLE_ENDIAN
-			val = swap_word(value);
-#else
-			val = value;
-#endif
-
-#ifdef EMUMEM_SAFE
-			/* if crossing page boundary */
-			if ((addr%MEM_PAGE_BOUNDARY) > MEM_PAGE_BOUNDARY-sizeof(word_t)) {
-				write_block(addr, &val, sizeof(word_t));
-				return;
-			}
-
-			byte_t *ptr = translate(addr, MEMORY_PAGE_WRITABLE);
-			if (ptr) *reinterpret_cast<word_t*>(ptr) = val;
-			else intf->write_word(addr, val);
-#else
-			byte_t *ptr = translate(addr, MEMORY_PAGE_WRITABLE);
-			*reinterpret_cast<word_t*>(ptr) = val; 
-#endif
+			write_word_slow(addr, value, f);
+			return;
 		}
 
-		halfword_t read_half_word(target_addr_t addr)
-		{
-			halfword_t value;
-			byte_t *ptr;
+		const memory_page_table_entry_t *pte = get_page(addr);
+		/* if empty (not allocated), remapped, bad, or not writable */
+		if (!(pte->flag & MEMORY_PAGE_WRITABLE))
+			write_word_slow(addr, value, f);
+		else
+#if WORDS_BIGENDIAN==TARGET_LITTLE_ENDIAN
+			*reinterpret_cast<word_t*>(pte->ptr + addr) = swap_word(value);
+#else
+			*reinterpret_cast<word_t*>(pte->ptr + addr) = value;
+#endif
+	}
 
-#ifdef EMUMEM_SAFE
-			/* if crossing page boundary */
-			if ((addr%MEM_PAGE_BOUNDARY) > MEM_PAGE_BOUNDARY-sizeof(halfword_t)) {
-				read_block(&value, addr, sizeof(halfword_t));
-			}
+	halfword_t read_halfword(target_addr_t addr,
+			memory_fault_info_t *f = NULL)
+	{
+		/* if crossing page boundary */
+		if (cross_page_boundary(addr, sizeof(halfword_t)))
+		{
+			return read_halfword_slow(addr, f);
+		}
+		else {
+			const memory_page_table_entry_t *pte = get_page(addr);
+			/* if empty (not allocated), remapped, bad, or not readable */
+			if (!(pte->flag & MEMORY_PAGE_READABLE))
+				return read_halfword_slow(addr, f);
 			else
-			{
-
-				ptr = translate(addr, MEMORY_PAGE_READABLE);
-				value = ptr?*reinterpret_cast<halfword_t*>(ptr):
-							intf->read_half_word(addr);
-			}
-#else 
-			ptr = translate(addr, MEMORY_PAGE_READABLE);
-			value = *reinterpret_cast<word_t*>(ptr);
-#endif
-
 #if WORDS_BIGENDIAN==TARGET_LITTLE_ENDIAN
-			return swap_half_word(value);
+				return swap_halfword(*reinterpret_cast<halfword_t*>
+										(pte->ptr + addr));
 #else
-			return value;
+				return *reinterpret_cast<halfword_t *>(pte->ptr + addr);
 #endif
 		}
+	}
 
-		void write_half_word(target_addr_t addr, halfword_t value)
+	void write_halfword(target_addr_t addr, halfword_t value,
+			memory_fault_info_t *f = NULL)
+	{
+		/* if crossing page boundary */
+		if (cross_page_boundary(addr, sizeof(halfword_t)))
 		{
-			halfword_t val;
+			write_halfword_slow(addr, value, f);
+			return;
+		}
 
+		const memory_page_table_entry_t *pte = get_page(addr);
+		/* if empty (not allocated), remapped, bad, or not writable */
+		if (!(pte->flag & MEMORY_PAGE_WRITABLE))
+			write_halfword_slow(addr, value, f);
+		else
 #if WORDS_BIGENDIAN==TARGET_LITTLE_ENDIAN
-			val = swap_half_word(value);
+			*reinterpret_cast<halfword_t*>(pte->ptr + addr) =
+					swap_halfword(value);
 #else
-			val = value;
+			*reinterpret_cast<halfword_t*>(pte->ptr + addr) = value;
 #endif
- 
-#ifdef EMUMEM_SAFE
-			/* if crossing page boundary */
-			if ((addr%MEM_PAGE_BOUNDARY) > MEM_PAGE_BOUNDARY-sizeof(halfword_t)) {
-				write_block(addr, &val, sizeof(halfword_t));
-				return;
-			}
+	}
 
-			byte_t *ptr = translate(addr, MEMORY_PAGE_WRITABLE);
-			if (ptr) *reinterpret_cast<halfword_t*>(ptr) = val;
-			else intf->write_half_word(addr, val);
-#else
-			byte_t *ptr = translate(addr, MEMORY_PAGE_WRITABLE);
-			*reinterpret_cast<halfword_t*>(ptr) = val; 
-#endif
-		}
-
-		/* dword operations */
-		dword_t read_dword(target_addr_t addr);
-		void write_dword(target_addr_t addr, dword_t value);
-
-		/* block operations */
-		void read_block(void *buf, target_addr_t addr, unsigned int size);
-		void write_block(target_addr_t, void *buf, unsigned int size);
-		void set_block(target_addr_t addr, byte_t value, unsigned int size);
-
-#ifdef EMUMEM_SAFE
-		/* some useful utilities */
-		target_addr_t align_to_page_boundary(target_addr_t addr)
+	/* dword operations */
+	dword_t read_dword(target_addr_t addr,
+			memory_fault_info_t *f = NULL)
+	{
+		/* if crossing page boundary */
+		if (cross_page_boundary(addr, sizeof(dword_t)))
 		{
-			return addr - (addr % MEM_PAGE_BOUNDARY);                  
+			return read_dword_slow(addr, f);
 		}
+		else 
+		{
+			const memory_page_table_entry_t *pte = get_page(addr);
+			/* if empty (not allocated), remapped, bad, or not readable */
+			if (!(pte->flag & MEMORY_PAGE_READABLE))
+				return read_dword_slow(addr, f);
+			else
+#if WORDS_BIGENDIAN==TARGET_LITTLE_ENDIAN
+				return swap_dword(*reinterpret_cast<dword_t*>
+										(pte->ptr + addr));
+#else
+				return *reinterpret_cast<dword_t*>(pte->ptr + addr);
 #endif
+		}
+
+	}
+
+	void write_dword(target_addr_t addr, dword_t value,
+			memory_fault_info_t *f = NULL)
+	{
+		/* if crossing page boundary */
+		if (cross_page_boundary(addr, sizeof(dword_t)))
+		{
+			write_dword_slow(addr, value, f);
+			return;
+		}
+
+		const memory_page_table_entry_t *pte = get_page(addr);
+		/* if empty (not allocated), remapped, bad, or not writable */
+		if (!(pte->flag & MEMORY_PAGE_WRITABLE))
+			write_dword_slow(addr, value, f);
+		else
+#if WORDS_BIGENDIAN==TARGET_LITTLE_ENDIAN
+			*reinterpret_cast<dword_t*>(pte->ptr + addr) =
+							swap_dword(value);
+#else
+			*reinterpret_cast<dword_t*>(pte->ptr + addr) = value;
+#endif
+	}
+
+
+	/* block operations */
+	unsigned int read_block(void *buf, target_addr_t addr,
+			unsigned int size, memory_fault_info_t *f = NULL);
+	unsigned int write_block(target_addr_t, void *buf,
+			unsigned int size, memory_fault_info_t *f = NULL);
+	unsigned int set_block(target_addr_t addr, byte_t value,
+			unsigned int size, memory_fault_info_t *f = NULL);
+
+	/*******************************************************************
+		End of main interface functions.
+	*******************************************************************/
+
+
+	/* test if an address crosses page boundary, size < MEM_PAGE_SIZE */
+	bool cross_page_boundary(target_addr_t addr, unsigned int size) const
+	{
+		return (addr & (MEMORY_PAGE_SIZE - 1)) >
+				(MEMORY_PAGE_SIZE - size);
+	}
+
+	/* some useful utilities */
+	target_addr_t align_to_page_boundary(target_addr_t addr) const
+	{
+		return addr - (addr & (MEMORY_PAGE_SIZE-1));                  
+	}
+
+	/* return the number of pages allocated */
+	unsigned int get_page_count() const {
+		return page_count;
+	}
 
 #ifdef TEST_MEMORY
-		/* memory test , true->succeed */
-		bool test();
+	/* memory test , true->succeed */
+	bool test();
 #endif
-
-		/* for instruction fetching only
-		 * this assumes that the access mode is read|execute (inst. fetch) */
-		word_t read_word_fast(target_addr_t addr) {
-
-#ifdef EMUMEM_SAFE
-			if ((addr%MEM_PAGE_BOUNDARY) > MEM_PAGE_BOUNDARY-sizeof(word_t))
-				return read_word(addr);
-#endif
-
-#if WORDS_BIGENDIAN==TARGET_LITTLE_ENDIAN
-		    return swap_word(*reinterpret_cast<word_t *>(translate_fast(addr)));
-#else
-		    return *reinterpret_cast<word_t *>(translate_fast(addr));
-#endif
-		}                               
-
-		/* return the number of pages allocated */
-		unsigned int get_page_count() {
-			return page_count;
-		}
 
 	private:
 
-		static u_hword_t swap_half_word(u_hword_t val) {
-			return (val>>8) | (val<<8);
+	halfword_t swap_halfword(halfword_t val) const
+	{
+		return (val>>8) | (val<<8);
+	}
+
+	word_t swap_word(word_t val) const
+	{
+		return (val>>24) | ((val>>8)&0xFF00) |
+			   ((val&0xFF00)<<8) |  (val<<24) ;
+	}
+
+	dword_t swap_dword(dword_t val) const
+	{
+		return ((dword_t)swap_word((word_t)val)<<32) |
+			    (dword_t)swap_word((word_t)(val>>32));
+	}
+
+	/* storage allocated for a normal page */
+	bool page_allocated(const memory_page_table_entry_t *pte) const 
+	{
+		return ((pte->flag & MEMORY_PAGE_SLOW)==0);
+	}
+
+	/* storage allocated for a normal page */
+	bool page_allocated(target_addr_t addr) const 
+	{
+		target_addr_t page_index = addr >> MEMORY_PAGE_SIZE_BITS;
+		return ((page_table[page_index].flag & MEMORY_PAGE_SLOW)==0);
+	}
+
+	const memory_page_table_entry_t *get_page(target_addr_t addr) const
+	{
+		target_addr_t page_index = addr >> MEMORY_PAGE_SIZE_BITS;
+		return page_table + page_index;
+	}
+
+	memory_page_table_entry_t *get_page(target_addr_t addr)
+	{
+		target_addr_t page_index = addr >> MEMORY_PAGE_SIZE_BITS;
+		return page_table + page_index;
+	}
+
+	/* address translation */
+	bool translate(byte_t **des, target_addr_t addr, unsigned perm) const
+	{
+		const memory_page_table_entry_t *pte = get_page(addr);
+
+		/* if empty (not allocated), remapped or bad */
+		if ((pte->flag & perm) != perm) {
+			return false;
 		}
+		/* normal page with space already allocated */
+		*des = pte->ptr + addr;
+		return true;
+	}
 
-		static u_word_t swap_word(u_word_t val) {
-			return (val>>24) | ((val>>8)&0xFF00) |
-				   ((val&0xFF00)<<8) |  (val<<24) ;
-		}
+	/* memory fault */
+	void report_fault(target_addr_t addr, unsigned int code,
+			memory_fault_info_t *f);
 
-		static u_dword_t swap_dword(u_dword_t val) {
-			return ((dword_t)swap_word((word_t)val)<<32) |
-				    (dword_t)swap_word((word_t)(val>>32));
-		}
+	void write_dword_slow(target_addr_t addr, dword_t value,
+			memory_fault_info_t *f);
+	void write_word_slow(target_addr_t addr, word_t value,
+			memory_fault_info_t *f);
+	void write_byte_slow(target_addr_t addr, byte_t value,
+			memory_fault_info_t *f);
+	void write_halfword_slow(target_addr_t addr, halfword_t value,
+			memory_fault_info_t *f);
 
-#ifdef EMUMEM_SAFE
-		/* memory protection error */
-		void error(target_addr_t addr, unsigned access, unsigned action);
+	dword_t read_dword_slow(target_addr_t addr, memory_fault_info_t *f);
+	word_t read_word_slow(target_addr_t addr, memory_fault_info_t *f);
+	byte_t read_byte_slow(target_addr_t addr, memory_fault_info_t *f);
+	halfword_t read_halfword_slow(target_addr_t addr,
+			memory_fault_info_t *f);
 
-		static uint32_t hash1(target_addr_t index)
-		{
-			return index / SECONDARY_MEMORY_TABLE_SIZE;
-		}
+	unsigned int read_block_within_page(void *buf,
+		target_addr_t addr, unsigned int size, memory_fault_info_t *f);
+	unsigned int write_block_within_page(target_addr_t,
+		void *buf, unsigned int size, memory_fault_info_t *f);
+	unsigned int set_block_within_page(target_addr_t addr,
+		byte_t value, unsigned int size, memory_fault_info_t *f);
 
-		static uint32_t hash2(target_addr_t index)
-		{
-			return index % SECONDARY_MEMORY_TABLE_SIZE;
-		}
+	void allocate_page(memory_page_table_entry_t *pte);
 
-		memory_page_table_entry_t *allocate_page(target_addr_t index);
+	// returns true if there is a permission fault, f will be set
+	bool check_page_permission(target_addr_t addr,
+			unsigned int perm, memory_fault_info_t *f);
+			
+	memory_page_table_entry_t page_table[MEMORY_PAGE_TABLE_SIZE];
 
-		memory_page_table_entry_t *search_page(target_addr_t index)
-		{
-			uint32_t h1;
-			uint32_t h2;
-			secondary_memory_hash_table_t *secondary_hash_table;
-
-			h1 = hash1(index);
-			secondary_hash_table = primary_hash_table[h1];
-
-			if(secondary_hash_table)
-			{
-				h2 = hash2(index);
-				return secondary_hash_table->pte[h2];
-			}
-			return 0;
-		}
-
-		memory_page_table_entry_t *get_page(target_addr_t addr)
-		{
-			memory_page_table_entry_t *pte;
-	
-			addr = addr >> MEMORY_PAGE_SIZE_BITS;
-			pte = search_page(addr);
-			if(!pte)
-				pte = allocate_page(addr);
-
-			return pte;
-		}
-
-		secondary_memory_hash_table_t 
-			*primary_hash_table[PRIMARY_MEMORY_TABLE_SIZE];
-
-		/* for possibly sequential reads by read_word_fast */
-		target_addr_t cached_addr;
-		memory_page_table_entry_t *cached_pte;
-		unsigned cache_valid;
-
-		memory_ext_interface *intf;	/* triggered memory map interface */
-		target_addr_t fault_addr;	/* address that last cause memory fault */
-		unsigned fault_access;		/* access control bits */
-		unsigned fault_action;		/* the access attempt */
-#endif
-
-#ifdef EMUMEM_FAST
-		void init();
-
-		byte_t * allocate_frame(target_addr_t index);
-
-		byte_t * mmap_frame[MMAP_FRAME_NUM];
-#endif
-
-		unsigned int page_count;	/* stats information */
-
+	memory_fault_info_t fault_info;
+	unsigned int page_count;	/* stats information */
 
 };
 

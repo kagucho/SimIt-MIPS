@@ -14,7 +14,7 @@
 
 @SET_MAKE@
 
-SOURCES = $(decgen32_SOURCES)
+SOURCES = $(issgen_SOURCES)
 
 srcdir = @srcdir@
 top_srcdir = @top_srcdir@
@@ -36,8 +36,8 @@ POST_INSTALL = :
 NORMAL_UNINSTALL = :
 PRE_UNINSTALL = :
 POST_UNINSTALL = :
-noinst_PROGRAMS = decgen32$(EXEEXT)
-subdir = decgen
+noinst_PROGRAMS = issgen$(EXEEXT)
+subdir = issgen
 DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/acinclude.m4 \
@@ -48,36 +48,26 @@ mkinstalldirs = $(mkdir_p)
 CONFIG_HEADER = $(top_builddir)/config.h
 CONFIG_CLEAN_FILES =
 PROGRAMS = $(noinst_PROGRAMS)
-am__objects_1 = parse_idef.$(OBJEXT)
-am__objects_2 =
-am__objects_3 = scan_idef.$(OBJEXT)
-am_decgen32_OBJECTS = decode.$(OBJEXT) decode_table.$(OBJEXT) \
-	huffman.$(OBJEXT) decode_tree.$(OBJEXT) main.$(OBJEXT) \
-	decode_theiling.$(OBJEXT) bin_pattern.$(OBJEXT) \
-	undef.$(OBJEXT) $(am__objects_1) $(am__objects_2) \
-	$(am__objects_3)
-decgen32_OBJECTS = $(am_decgen32_OBJECTS)
-decgen32_LDADD = $(LDADD)
+am_issgen_OBJECTS = symbol.$(OBJEXT) issgen.$(OBJEXT) \
+	parse_isa.$(OBJEXT) scan_isa.$(OBJEXT)
+issgen_OBJECTS = $(am_issgen_OBJECTS)
+issgen_LDADD = $(LDADD)
 DEFAULT_INCLUDES = -I. -I$(srcdir) -I$(top_builddir)
 depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__depfiles_maybe = depfiles
-@AMDEP_TRUE@DEP_FILES = ./$(DEPDIR)/bin_pattern.Po \
-@AMDEP_TRUE@	./$(DEPDIR)/decode.Po ./$(DEPDIR)/decode_table.Po \
-@AMDEP_TRUE@	./$(DEPDIR)/decode_theiling.Po \
-@AMDEP_TRUE@	./$(DEPDIR)/decode_tree.Po ./$(DEPDIR)/huffman.Po \
-@AMDEP_TRUE@	./$(DEPDIR)/main.Po ./$(DEPDIR)/parse_idef.Po \
-@AMDEP_TRUE@	./$(DEPDIR)/scan_idef.Po ./$(DEPDIR)/undef.Po
-COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
-	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
-CCLD = $(CC)
-LINK = $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) $(LDFLAGS) -o $@
+@AMDEP_TRUE@DEP_FILES = ./$(DEPDIR)/issgen.Po ./$(DEPDIR)/parse_isa.Po \
+@AMDEP_TRUE@	./$(DEPDIR)/scan_isa.Po ./$(DEPDIR)/symbol.Po
 CXXCOMPILE = $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) \
 	$(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS)
 CXXLD = $(CXX)
 CXXLINK = $(CXXLD) $(AM_CXXFLAGS) $(CXXFLAGS) $(AM_LDFLAGS) $(LDFLAGS) \
 	-o $@
-SOURCES = $(decgen32_SOURCES)
-DIST_SOURCES = $(decgen32_SOURCES)
+COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
+	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
+CCLD = $(CC)
+LINK = $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) $(LDFLAGS) -o $@
+SOURCES = $(issgen_SOURCES)
+DIST_SOURCES = $(issgen_SOURCES)
 ETAGS = etags
 CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
@@ -166,60 +156,12 @@ sbindir = @sbindir@
 sharedstatedir = @sharedstatedir@
 sysconfdir = @sysconfdir@
 target_alias = @target_alias@
-DECLEX := scan_idef.l
-DECLEX_SRC := scan_idef.c
-DECPARSE := parse_idef.y
-DECPARSE_SRC := parse_idef.cpp
-DECPARSE_HDR := parse_idef.h
-decgen32_SOURCES = decode.cpp decode_table.cpp huffman.cpp decode_tree.cpp \
-	main.cpp decode_theiling.cpp \
-	decode.h decode_table.h huffman.h decode_tree.h \
-	decode_theiling.h \
-	bin_pattern.cpp bin_pattern.hpp undef.cpp \
-	inst_type.h $(DECPARSE_SRC) $(DECPARSE_HDR) $(DECLEX_SRC)
-
-HDRS = decode.h decode_table.h huffman.h decode_tree.h decode_theiling.h \
-	inst_type.h $(DECPARSE_HDR)
-
-
-#OBJ64S = decode64.o decode_table64.o huffman64.o decode_tree64.o main64.o \
-#	decode_theiling64.o parse_idef64.o scan_idef.o
-
-#decgen64$(EXEEXT): $(OBJ64S)
-#	$(CXXLINK) $(LDFLAGS) $(OBJ64S)
-
-#CFLAGS64 = -DINSTSIZE=8
-
-#%64.o :: $(srcdir)/%.cpp
-#	$(CXXCOMPILE) $(CFLAGS64) -c $< -o $@
-
-#decode64.o: decode.cpp $(HDRS)
-#	$(CXXCOMPILE) $(CFLAGS64) -c decode.cpp -o $@
-#
-#decode_table64.o: decode_table.cpp $(HDRS)
-#	$(CXXCOMPILE) $(CFLAGS64) -c decode_table.cpp -o $@
-#
-#huffman64.o: huffman.cpp huffman.h 
-#	$(CXXCOMPILE) $(CFLAGS64) -c huffman.cpp -o $@
-#
-#decode_tree64.o: decode_tree.cpp $(HDRS)
-#	$(CXXCOMPILE) $(CFLAGS64) -c decode_tree.cpp -o $@
-#
-#decode_theiling64.o: decode_theiling.cpp $(HDRS)
-#	$(CXXCOMPILE) $(CFLAGS64) -c decode_theiling.cpp -o $@
-#
-#main64.o: main.cpp $(HDRS)
-#	$(CXXCOMPILE) $(CFLAGS64) -c $(srcdir)/main.cpp -o $@
-#
-#parse_idef64.o: $(DECPARSE_SRC) $(HDRS)
-#	$(CXXCOMPILE) $(CFLAGS64) -c $(DECPARSE_SRC) -o $@
-EXTRA_DIST = $(DECLEX) $(DECPARSE)
-INCLUDES = -I..
-CLEANFILES = $(DECPARSE_SRC) $(DECPARSE_HDR) $(DECLEX_SRC)
+issgen_SOURCES = symbol.cpp symbol.hpp issgen.hpp issgen.cpp parse_isa.cpp scan_isa.cpp parse_isa.hpp
+EXTRA_DIST = parse_isa.y scan_isa.l
 all: all-am
 
 .SUFFIXES:
-.SUFFIXES: .c .cpp .o .obj
+.SUFFIXES: .cpp .o .obj
 $(srcdir)/Makefile.in:  $(srcdir)/Makefile.am  $(am__configure_deps)
 	@for dep in $?; do \
 	  case '$(am__configure_deps)' in \
@@ -229,9 +171,9 @@ $(srcdir)/Makefile.in:  $(srcdir)/Makefile.am  $(am__configure_deps)
 	      exit 1;; \
 	  esac; \
 	done; \
-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu  decgen/Makefile'; \
+	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu  issgen/Makefile'; \
 	cd $(top_srcdir) && \
-	  $(AUTOMAKE) --gnu  decgen/Makefile
+	  $(AUTOMAKE) --gnu  issgen/Makefile
 .PRECIOUS: Makefile
 Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
 	@case '$?' in \
@@ -252,9 +194,9 @@ $(ACLOCAL_M4):  $(am__aclocal_m4_deps)
 
 clean-noinstPROGRAMS:
 	-test -z "$(noinst_PROGRAMS)" || rm -f $(noinst_PROGRAMS)
-decgen32$(EXEEXT): $(decgen32_OBJECTS) $(decgen32_DEPENDENCIES) 
-	@rm -f decgen32$(EXEEXT)
-	$(CXXLINK) $(decgen32_LDFLAGS) $(decgen32_OBJECTS) $(decgen32_LDADD) $(LIBS)
+issgen$(EXEEXT): $(issgen_OBJECTS) $(issgen_DEPENDENCIES) 
+	@rm -f issgen$(EXEEXT)
+	$(CXXLINK) $(issgen_LDFLAGS) $(issgen_OBJECTS) $(issgen_LDADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -262,32 +204,10 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/bin_pattern.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/decode.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/decode_table.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/decode_theiling.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/decode_tree.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/huffman.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/main.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/parse_idef.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/scan_idef.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/undef.Po@am__quote@
-
-.c.o:
-@am__fastdepCC_TRUE@	if $(COMPILE) -MT $@ -MD -MP -MF "$(DEPDIR)/$*.Tpo" -c -o $@ $<; \
-@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/$*.Tpo" "$(DEPDIR)/$*.Po"; else rm -f "$(DEPDIR)/$*.Tpo"; exit 1; fi
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$<' object='$@' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	depfile='$(DEPDIR)/$*.Po' tmpdepfile='$(DEPDIR)/$*.TPo' @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(COMPILE) -c $<
-
-.c.obj:
-@am__fastdepCC_TRUE@	if $(COMPILE) -MT $@ -MD -MP -MF "$(DEPDIR)/$*.Tpo" -c -o $@ `$(CYGPATH_W) '$<'`; \
-@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/$*.Tpo" "$(DEPDIR)/$*.Po"; else rm -f "$(DEPDIR)/$*.Tpo"; exit 1; fi
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$<' object='$@' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	depfile='$(DEPDIR)/$*.Po' tmpdepfile='$(DEPDIR)/$*.TPo' @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(COMPILE) -c `$(CYGPATH_W) '$<'`
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/issgen.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/parse_isa.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/scan_isa.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/symbol.Po@am__quote@
 
 .cpp.o:
 @am__fastdepCXX_TRUE@	if $(CXXCOMPILE) -MT $@ -MD -MP -MF "$(DEPDIR)/$*.Tpo" -c -o $@ $<; \
@@ -400,7 +320,6 @@ install-strip:
 mostlyclean-generic:
 
 clean-generic:
-	-test -z "$(CLEANFILES)" || rm -f $(CLEANFILES)
 
 distclean-generic:
 	-rm -f $(CONFIG_CLEAN_FILES)
@@ -469,20 +388,19 @@ uninstall-am: uninstall-info-am
 	uninstall-am uninstall-info-am
 
 
-#This happens to be a turbulent time for bison.
-#Older version 1.28 will generate parse_idef.cpp.h as the definition file.
-#While new version  1.35 will generate parse_idef.hpp as the definition file.
-#And bison does not allow overriding the default definition file name.
-#So I have to do it myself in a stupid way.
-$(DECPARSE_SRC): $(DECPARSE)
-	@YACC@ -d $^
-	mv y.tab.c $@
-	mv y.tab.h $(DECPARSE_HDR)
+parse_isa.cpp : parse_isa.y
+	@YACC@ -d -p isa_ $^ -o $@
 
-$(DECPARSE_HDR): $(DECPARSE)
+scan_isa.cpp : scan_isa.l
+	@LEX@ -Pisa_ -o$@ $^
 
-$(DECLEX_SRC): $(DECLEX)
-	@LEX@ -o$@ $^
+deploy: mips.isa issgen
+	./issgen -p mips mips.isa
+	cp mips_iss.cpp $(top_srcdir)/emulator
+	cp mips_iss.hpp $(top_srcdir)/emulator
+	cp mips_inst.def $(top_srcdir)/emulator
+	cp mips_gen.cpp $(top_srcdir)/jit
+	cp mips_gen.hpp $(top_srcdir)/jit
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.
 .NOEXPORT:

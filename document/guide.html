@@ -1,4 +1,4 @@
-<head><TITLE>MIPSIM Users' Guide</TITLE>
+<head><TITLE>SimIt-MIPS Users' Guide</TITLE>
 
 <link rel="stylesheet" type="text/css" href="mipsimweb.css" />
 
@@ -8,164 +8,454 @@
 <body>
 <table width="90%" cellspacing="25" border="0" cellpadding="25" align="center">
   <tbody>
+    <tr>
+    <td>
+       <h1>SimIt-MIPS</h1><p class="nav">
+       <a href="index.html#news">NEWS</a> | 
+       <a href="index.html#about">ABOUT SimIt-MIPS</a> | 
+       <a href="index.html#dl">DOWNLOAD</a> | 
+       <a href="guide.html#idx">USERS' GUIDE</a></p>
+    </td>
+    </tr>
 
-      <tr>
-      <TD><h1>MIPSIM</h1><p class="nav">
-             <A href="index.html#news">NEWS</a> | 
-             <A href="index.html#about">ABOUT MIPSIM</A> | 
-	     <A href="index.html#dl">DOWNLOAD</A> | 
-	     <A href="Changelog.txt">CHANGELOG</A> | 
-	     <A href="guide.html#idx">USERS' GUIDE</A></p>
-	     </TD></tr>
-	     <tr><TD>
-	     <h1><a name="idx"></a>Users' Guide</h1>
-      <ol><LI><A href="#ins">INSTALLATION</A></LI>
-      <LI><A href="#ums">USING MIPSIM</A><ul><LI><A href="#qst">Quick Start</A></LI>
-      <li><A href="#adv">Advanced Options</A></li>
-      <li><A href="#dbg">Built-in Debugger</A></li>
-      <li><A href="#gdb">GDB Interface</A></li>
-      <li><A href="#elt">emips_lite</A></li></ul></ol>
-     </TD>
-      </tr>
-      <tr>
-      <td><h2><a name="ins"></a>INSTALLATION</h2>
-      <p class="main">To install, untar the source by</p>
-         <pre>tar xzvf mipsim.tar.gz</pre>
-	 <p class="main">Build the source code by</p>
-<pre>cd mipsim
+    <tr><td>
+       <h1><a name="idx"></a>Users' Guide</h1>
+    <ol>
+    <li><a href="#ins">Installation</a></li>
+    <li><a href="#qst">Quick Start</a></li>
+    <li><a href="#ums">Interpreter</a>
+       <ul>
+       <li><a href="#adv">Commandline Options</a></li>
+       <li><a href="#dbg">Built-in Debugger</a></li>
+       <li><a href="#gdb">GDB Interface</a></li>
+       </ul>
+    <li><a href="#scs">Static-compiled Simulator</a></li>
+    <li><a href="#dcs">Dynamic-compiled Simulator</a>
+    <li><a href="#rfn">Reference</a>
+    </ol>
+
+    </td>
+    </tr>
+
+    <tr>
+    <td>
+
+<h2><a name="ins"></a>Installation</h2>
+
+<p class="main">
+To install, first untar the source by</p>
+     <pre>tar xzvf SimIt-MIPS-1.0.tar.gz</pre>
+<p class="main">
+Then build the source code by</p>
+
+<pre>cd SimIt-MIPS-1.0
 ./configure
 make
 make install</pre>
-	 <p class="main">The default installation directory is <i>build/bin</i>.
-	 If you want to change this, configure with the flag</p>
-<pre>./configure --prefix=PREFIX</pre>
-	<p class="main">
-	 Note: On Cygwin platforms, you may have to try</p> 
-<pre>CONFIG_SHELL=bash ./configure --prefix=PREFIX</pre>
-	 <p class="main">To test the installation was successful type</p>
-<pre>PREFIX/bin/emips test/wc configure</pre>
+
+<p class="main">
+After these steps, the <i>./build/bin</i> directory
+contains the following programs:</p>
+<dl>
+<dt>emips</dt><dd>A MIPS32 interpreter.</dd>
+<dt>emips_decomp</dt><dd>A Decompiler that translates mips binary to C++.</dd>
+<dt>build_scs</dt><dd>A shell script that builds static-compiled simulator using emips_decomp</dd>
+<dt>emips_jit</dt><dd>A dynamic-compiled simulator.</dd>
+<dt>emips_jit_server</dt><dd>A optional translation server that can be used to acceperate dynamic-compiled simulation.</dd>
+</dl>
+
+<p class="main">
+To test the installation was successful type</p>
+<pre>./build/bin/emips test/wc configure</pre>
+<p class="main">
+The above command simulates the UNIX utility <i>wc</i>.
+If the simulator is installed correctly, you should see the line count,
+word count, and character count of the file <i>configure</i>.</p>
+
+<p class="main">
+If one prefers other installation directory than
+the default <i>build</i>, one can specify the <i>prefix</i>
+configuration flag.</p>
+<pre>./configure --prefix=&lt;PREFIX path&gt;</pre>
+
+<p class="main">
+For convenience of referencing the simulator commands,
+one can include the <i>bin/</i> directory into the environment
+variable <i>PATH</i> by typing in bash</p>
+
+<pre>export PATH=$PATH:&lt;PREFIX PATH&gt;/bin</pre>
+
+<p class="main">
+or in csh
+</p>
+<pre>setenv PATH ${PATH}:&lt;PREFIX PATH&gt;/bin</pre>
+
+<br>
+<br>
+<a href="#idx">BACK TO INDEX</a>
+    </td>
+</tr>
+
+<tr>
+<td>
+<h2><a name="qst"></a>Quick Start</h2>    
+<p class="main">
+SimIt-MIPS reads ELF32 little-endian MIPS binaries.
+The binaries must be statically linked.  See the
+<a href="http://kegel.com/crosstool/">crosstool page</a>
+for more information on building a
+cross MIPS compiler. The mipsel configuration with gcc-3.3.4 and gibc-2.3.2
+should work fine.</p>
+
+<p class="main">
+This section uses a simple C program to demonstrate the
+essential steps involved in using the simulator.
+Below shows the example program:</p>
+<pre>
+#include &#060;stdio.h&#062;
+int main()
+{
+  printf("Hello World!\n");
+  return 0;
+}
+</pre>
+
+<p class="main">
+Now compile the program using the ELF32 MIPS cross-compiler. 
+Remember to statically link the binary.
+The command should be something like:</p>
+<pre>mipsel-linux-gnu-gcc -static -o hello_world hello_world.c </pre>
+<p class="main">
+The compiler generates the <i>hello_world</i> MIPS32 binary.
+Assuming that the <i>&lt;PREFIX&gt;/bin</i>
+directory has been added to the environment 
+variable <i>PATH</i>, one can simulate the binary by typing</p>
+<pre>emips hello_world</pre>
+
+<p class="main">
+The interpreter <b>emips</b> will output "Hello World!" in the standard output.
+Usage of the interpreter is described in more detail in
+Section <a href="#ums">Interpreter</a>.
+One can also build a static-compiled simulator for the program 
+(more accurately, binary-translate the program)
+by typing</p>
+<pre>build_scs hello_world</pre>
+<p class="main">
+The above command will take several minutes to finish since building
+the static-compiled simulator involves compiling dozens of C++
+functions. The building process will create a folder 
+named <i>hello_world.scs</i>  under the current working directory.
+In the folder, there is a script <i>hello_world</i>.
+To run the translated program, simply run the script.</p>
+<pre>./hello_world.scs/hello_world</pre>
+
+<p class="main">
+Section <a href="#scs">Static compiled simulation</a> gives a complete
+description on building static-compiled simulators.</p>
+<p class="main">
+Lastly, the dynamic-compiled simulator can be invoked by</p>
+<pre>emips_jit hello_world</pre> 
+<p class="main">
+In this example, the dynamic-compiled simulator interprets the whole
+program since <i>hello_world</i> is too short to
+trigger run-time compilation.
+A full description of the dynamic-compiled simulator
+is provided in Section <a href="#dcs">Dynamic compiled simulation</a>.
+</p>
+
 <br><a href="#idx">BACK TO INDEX</a>
-      </td>
-    </tr>
-    <tr>
-      <td><h2><a name="ums"></a>USING MIPSIM</h2><h2><a name="qst"></a>Quick Start</h2>        
-       <p class="main">MIPSIM reads ELF32 little-endian MIPS binaries.  The binaries must be statically linked.  See
-	the <A href="http://kegel.com/crosstool/">crosstool page</A> or your compiler documentation
-	for more information.</p>
-	<h3>Example:</h3> 
-      <p class="main">Write a simple c program such as:</p>
-      <pre>#include &#060;stdio.h&#062;
-      int main()
-      {
-      	printf("Hello World!");
-	return 0;
-      }
-	</pre>
-	<p class="main">Compile the program using the ELF32 MIPS cross-compiler.  Remember to statically link the 
-	binary.  The command should be something like:</p>
-	<pre>mipsel-linux-gnu-gcc -static -ohello_world hello_world.c </pre>
-       <p class="main">To have MIPSIM run your program, simply type</p>
-        <pre>./emips hello_world</pre>
-	<br><a href="#idx">BACK TO INDEX</a>
-	</td>
-	</tr>
-	<tr><TD><h2><a name="adv"></a>Advanced Options</h2>
-	<p class="main">As a default, running the simulator will print out running time information and instruction counts.  
-	It also performs permission checks on memory accesses as a default.  The default syntax for running the simulator is:</p>
-        <pre>./emips &#060;program name&#062; &#060;program arguments&#062;</pre>
-	 <p class="main">If you want MIPSIM to print out various error messages and syscall information, 
-	 run it in verbose mode by typing</p>
-	 <pre>./emips -v &#060;program name&#062; &#060;program arguments&#062;</pre>
-	 <p class="main">You can also set MIPSIM to only run for a certain number of instructions with</p>
-	 <pre>./emips -m [number of instructions] &#060;program name&#062; &#060;program arguments&#062;</pre>
-	 <br><a href="#idx">BACK TO INDEX</a>
-	 </TD></tr>
-	 <tr><TD><h2><a name="dbg"></a>Built-in Debugger</h2>
-       <p class="main">MIPSIM also has the ability to run in debugging mode for your programs.  To start MIPSIM in 
-         debugging mode type:</p>
-	 <pre>./emips -d &#060;program name&#062;</pre>
-	<p class="main">The following instructions are available at the debugging prompt:</p>
-	 <dl>
-	 <dt>h</dt><dd>print help message</dd>
-         <dt>u [addr]</dt><dd>disassemble 10 instructions from [addr]<br>addr can be either a hex address or 'pc', <br>which will disassemble from the current program counter</dd>
-         <dt>d [addr]</dt><dd>dump 256 bytes from memory address [addr]</dd>
-         <dt>g [addr]</dt><dd>run until pc = [addr]</dd>
-         <dt>t [num]</dt><dd>step [num] instruction(s)</dd>
-         <dt>r      </dt><dd>dump gpr and fpr value(s)</dd>
-         <dt>rf     </dt><dd>same as 'r' but fpr shown as float</dd>
-         <dt>rd     </dt><dd>same as 'r' but fpr shown as double</dd>
-         <dt>pc     </dt><dd>dump program counter</dd>
-         <dt>hi     </dt><dd>dump HI register</dd>
-         <dt>lo     </dt><dd>dump LO register</dd>
-         <dt>fcsr   </dt><dd>dump FCSR register</dd>
-         <dt>ra     </dt><dd>dump return address register ra(r31)</dd>
-         <dt>q</dt><dd>quit</dd>
-         </dl>
-	 <h3>Example:</h3> 
-	 <p class="main">Let's use the program <i>hello_world</i> discussed above.  Although the debugger performs run-time disassembly,
-	 it is sometimes useful to create a dump of the assembly code for your program before debugging.  Refer to your compiler 
-	 documentation for instructions on creating a dump file.  A common command is something like:</p>
-	 <pre>mipsel-linux-gnu-objdump -d hello_world >hello_world.dump</pre>
-	 <p>Start the debugger with the command:</p>
-	 <pre>./emips -d hello_world</pre>
-	 <p class="main">You should now see the debugger prompt.  At the prompt, you can type any of the commands above.  Let's assume 
-	 that, from our dump file, we learned that <i>main</i> was at address <i>0x004003e0</i>.  We can use the debugger to run our 
-	 program until it reaches <i>main</i> by typing:</p>
-	 <pre>&#062;g 4003e0</pre>
-	 <p class="main">If we want to see the first 10 instructions in main, we can type:</p>
-	 <pre>&#062;u pc</pre>
-	 <p class="main">Suppose we want to inspect all memory accesses and we notice that the 5th instruction is</p>
-	 <pre>0x004003f0 : 0xafbc0010 sw $gp, 16($sp)</pre>
-	 <p class="main">We can step through the first 4 instructions with:</p>
-	 <pre>&#062;t 4</pre>
-	 <p class="main">To inspect the contents of the registers, we can simply type:</p>
-	 <pre>&#062;r</pre>
-	 <p class="main">For this we can learn value of the stack pointer, <i>$sp</i>, which is addressed in this memory access.  Assume it
-	 is <i>0xbfffbda8</i>.  We can observe the contents of memory at this location by typing:</p>
-	 <pre>&#062;d bfffbda8</pre>
-	 <p class="main">The command will display 256 bytes of memory, so we can find the contents of memory that our program is accessing.  If we
-	 observe that the contents of memory is incorrect, we may want to go back and check previous memory accesses.  We can now terminate 
-	 the debugger by typing:</p>
-	 <pre>&#062;q</pre>
-	 <p class="main">and restart it to trace back to the first memory access.</p>
-	 <p class="main">Obviously there are more complicated debugging scenarios than this, but hopefully it will get you started.</p>
-	 <br><a href="#idx">BACK TO INDEX</a>
-	 </TD></tr>
-	 <tr><TD><h2><a name="gdb"></a>GDB Interface</h2>
-	<p class="main">Another debugging option is the gdb interface.  This is currently in an experimental phase but may prove useful.  
-	 To start the gdb interface, type:</p>
-	 <pre>./emips -gdb 127.0.0.1:1234 &#060;program name&#062; &#060;program arguments&#062; &#038;</pre>
-	<p class="main">Then start gdb by typing:</p>
-	<pre>gdb &#060;program name&#062;
+</td>
+</tr>
+
+<tr><td>
+<h2><a name="ums"></a>Interpreter</h2>
+
+<h3><a name="adv"></a>Commandline Options</h3>
+<p class="main">
+The default syntax for running the interpreter is:</p>
+<pre>./emips &#060;program name&#062; &#060;program arguments&#062;</pre>
+<p class="main">
+By default, the interpreter will print out running time
+information and instruction counts. If one wants SimIt-MIPS to
+print out error messages and system call information, 
+run it in verbose mode by typing</p>
+<pre>./emips -v &#060;program name&#062; &#060;program arguments&#062;</pre>
+
+<p class="main">
+Often simulation can take a very long period of time. To
+avoid waiting indefinitely, one can truncate simulation
+by setting an upper bound of the number of instructions to simulate.</p>
+<pre>./emips -m [number of instructions] &#060;program name&#062; &#060;program arguments&#062;</pre>
+
+<br>
+<h3><a name="dbg"></a>Built-in Debugger</h3>
+<p class="main">
+SimIt-MIPS also has the ability to trace the target programs.
+To start SimIt-MIPS in debugging mode type:</p>
+<pre>./emips -d &#060;program name&#062;</pre>
+
+<p class="main">
+The following instructions are available at the debugging prompt:</p>
+
+<dl>
+<dt>h</dt><dd>print help message</dd>
+<dt>u [addr]</dt><dd>disassemble 10 instructions from [addr]<br>addr can be either a hex address or 'pc', <br>which will disassemble from the current program counter</dd>
+<dt>d [addr]</dt><dd>dump 256 bytes from memory address [addr]</dd>
+<dt>g [addr]</dt><dd>run until pc = [addr]</dd>
+<dt>t [num]</dt><dd>step [num] instruction(s)</dd>
+<dt>r    </dt><dd>dump gpr and fpr value(s)</dd>
+<dt>rf   </dt><dd>same as 'r' but fpr shown as float</dd>
+<dt>rd   </dt><dd>same as 'r' but fpr shown as double</dd>
+<dt>pc   </dt><dd>dump program counter</dd>
+<dt>hi   </dt><dd>dump HI register</dd>
+<dt>lo   </dt><dd>dump LO register</dd>
+<dt>fcsr   </dt><dd>dump FCSR register</dd>
+<dt>ra   </dt><dd>dump return address register ra(r31)</dd>
+<dt>q</dt><dd>quit</dd>
+</dl>
+
+<p class="main">
+We again use the program <i>hello_world</i> as an example.
+Although the debugger performs run-time disassembly,
+it is sometimes useful to create a dump of the assembly code
+for the target program before debugging. The MIPS cross objdump can
+be used to create the dump. It is normally built along with the cross-gcc.</p>
+<pre>mipsel-linux-gnu-objdump -d hello_world &gt;hello_world.dump</pre>
+
+<p>Now start the debugger with the command:</p>
+<pre>./emips -d hello_world</pre>
+
+<p class="main">
+One should now see the debugger prompt "&gt;". 
+At the prompt, one can type any of the commands above.
+We assume that, from our dump file, we learn that the <i>main</i> function
+starts at address <i>0x004003e0</i>.
+We can instruct the debugger to run until
+the <i>main</i> function by typing:</p>
+<pre>&#062;g 4003e0</pre>
+
+<p class="main">
+At this point, if we want to see the first 10 instructions in main, we type:</p>
+<pre>&#062;u pc</pre>
+
+<p class="main">
+Suppose we want to inspect certain memory accesses
+and we notice that the 5th instruction is a memory store.</p>
+<pre>0x004003f0 : 0xafbc0010    sw $gp, 16($sp)</pre>
+
+<p class="main">
+We can step through the first 4 instructions with:</p>
+<pre>&#062;t 4</pre>
+<p class="main">
+To inspect the contents of the registers, we can simply type:</p>
+<pre>&#062;r</pre>
+
+<p class="main">
+From the screen printout, we can learn value of the stack pointer,
+<i>$sp</i>, which is used in the <i>sw</i> instruction. Assume its value
+is <i>0xbfffbda8</i>. We can observe the memory contents from
+this address by typing:</p>
+<pre>&#062;d bfffbda8</pre>
+
+<p class="main">
+The command will display 256 bytes of memory. So we can
+find the contents of memory that the program is accessing.  If we
+decide that the contents of memory is incorrect,
+we may want to go back and check previous memory accesses.
+We can now terminate the debugger by typing:</p>
+<pre>&#062;q</pre>
+
+<p class="main">and restart it to trace back to the first memory access.
+Obviously there are more complicated debugging scenarios than this.
+Hopefully the above example will get you started.</p>
+
+<br>
+<h3><a name="gdb"></a>GDB Interface</h3>
+<p class="main">
+A more powerful debugging option is the GDB remote debugging interface.
+This is currently in an experimental phase bus has already proven useful.  
+To enable this debugging approach,
+one must first build a GDB client that supports the MIPS target.
+The GDB client receives user commands, sends control
+instructions to the MIPS interpreter, modifies/retrieves register and
+memory values, and displays debugging information to the user.
+We built a GDB 6.3 client using the following configuration options</p>
+<pre>"--host=i686-pc-linux-gnu --target=mipsel-linux-gnu"</pre>
+
+<p class="main">
+To enable the gdb interface of the interpreter, type:</p>
+<pre>./emips -gdb 127.0.0.1:1234 &#060;program name&#062; &#060;program arguments&#062; &#038;</pre>
+
+<p class="main">
+The "-gdb" option specifies an IP address and a port. Here we use port 1234
+on the local machine (127.0.0.1) to communicate between
+GDB and the interpreter. We then start GDB by typing</p>
+<pre>mipsel-linux-gnu-gdb &#060;program name&#062;
 (gdb)target remote 127.0.0.1:1234
 (gdb)break main
 (gdb)cont</pre>
-	<p class="main">Not all of the gdb functionality has been tested, although many gdb commands work.  The interface also works with
-	ddd for graphical debugging.</p>
-	<br><a href="#idx">BACK TO INDEX</a>
-	</TD></tr>
-	<tr><TD><h2><a name="elt"></a>emips_lite</h2>
-	<p class="main">The emips_lite executable is a stripped-down build of MIPSIM for users who want maximum simulation speed.  The emips executable performs 
-	permission checks on memory accesses and counts each instruction.  These features take a large portion of running time, so they have been 
-	removed to create emips_lite. Also, emips_lite simulates 4MB memory pages while emips simulates 4KB pages.  The result of larger pages is a 20% speed-up.</p>
-	<p class="main">Running emips_lite is the same as running emips, except for the name of the binary.  Just type:</p>
-	<pre>./emips_lite &#060;program name&#062; &#060;program arguments&#062;</pre>
-	<br><a href="#idx">BACK TO INDEX</a>
-      </td>
-    </tr>
-        <tr>
-    <td>
-    <p class="main">
-          If you have further questions, contact the main authors at wqin@bu.edu or jderrico3@gmail.com. </p>         
-      <p class="nav">
-             <A href="index.html#news">NEWS</a> | 
-             <A href="index.html#about">ABOUT MIPSIM</A> | 
-	     <A href="index.html#dl">DOWNLOAD</A> | 
-	     <A href="Changelog.txt">CHANGELOG</A> | 
-	     <A href="guide.html#idx">USER GUIDE</A></p>
-     </TD>
-      </tr>
-  </tbody>
+
+<p class="main">
+The above commands sets a break point at the <i>main</i> function and
+starts simulation. Most common GDB commands are supported.
+The approach also works with DDD for graphical debugging.</p>
+<br><a href="#idx">BACK TO INDEX</a>
+</td></tr>
+
+<tr><td>
+<h2><a name="scs"></a>Static compiled simulation</h2>
+<p class="main">
+The static-compiled simulator breaks up the target program
+into small <i>pages</i>, and translates each page into a C++ function.
+The C++ functions are then compiled and linked together to form
+the static-compiled simulator. The process is often called binary
+translation.</p>
+<p class="main">
+In SimIt-MIPS, the program <i>emips_decomp</i>
+is used to perform translation from MIPS binary to C++. However, it
+is not recommended that users invoke it directly. Users should use
+the script <i>build_scs</i> instead. The script not only invokes
+<i>emips_decomp</i> to do translation, but also compiles the translated
+code and link them with support routines into a full simulator. 
+The command line format of the script is</p>
+<pre>build_scs [-c] [-v] [-l num] &lt;program&gt;</pre>
+<p class="main">
+The meaning of the optional arguments are listed below:</p>
+<dl>
+	<dt>-c</dt><dd>To count the number instructions during simulation. By default, the simulator will not count since it affects speed.</dd>
+	<dt>-v</dt><dd>To turn on the verbose mode. The simulator will print a message during each system call.</dd>
+	<dt>-l &lt;floating-point number&gt;</dt><dd>To specify the size of a page, in K instructions. Default page size is 1K=1024 instructions.</dd>
+</dl>
+<p class="main">
+The arguments must precede the path/name of the MIPS32 binary
+program to translate.
+The page size will be rounded up to the nearest power of 2. Additionally,
+if the page size is less than 512, it will be hard limited to 512.
+A larger page size means less but larger functions. A overly
+large page/function size may cause significant slowdown of G++ since
+many modern compiler optimizers have super-linear complexity.</p>
+<p class="main">
+The <i>build_scs</i> script will generate a directory named
+<i>&lt;program&lt;.scs</i> under the current working directory. The
+directory contains another script with the same name as the original
+program. The script can be invoked in the same way as the original
+MIPS program. For example, for the MIPS32 program <i>wc</i>, the
+script will generate the directory <i>wc.scs</i> and another
+script named <i>wc</i> under the new directory. One can then
+invoke <i>wc.scs/wc</i> in exactly the same way as one would
+invoke <i>wc</i> on a MIPS platform &mdash; the same program
+arguments to <i>wc</i> should be supplied to <i>wc.scs/wc</i>.</p>
+<br><a href="#idx">BACK TO INDEX</a>
+</td></tr>
+
+<tr><td>
+<h2><a name="dcs"></a>Dynamic compiled simulation</h2>
+<p class="main">
+The dynamic-compiled simulator combines the functionality of the
+interpreter and the static-compiled simulator. It interprets the program
+at the beginning of the simulation.
+Meanwhile it profiles the simulated program by keeping a counter
+for each page of the code. The counter records the cumulative
+number of simulated instructions in the page. If the number is beyond
+a predefined threshold, then this page is deemed hot and is translated.
+Translation is performed in two steps. First the page is translated
+to a C++ function. Next the C++ function is compiled into a shared
+library and linked to the simulator itself. Compilation of the
+C++ function can be done by the simulator itself, or can be distributed
+to a remote translation server. Obviously, the use of more translation
+servers means faster simulation speed.</p>
+<p class="main">
+The dynamic-compiled simulator can be invoked by the command <i>emips_jit</i>.
+The command has the following format:</p>
+<pre>emips_jit [-t num] [-l num] [-f fname] [-c] [-m] [-v] [-w] [-h] &lt;program&gt; &lt;program arguments&gt;</pre>
+<p class="main">
+The meaning of the command line arguments are explained below:</p>
+<dl>
+	<dt>-t &lt;floating-point number&gt;</dt><dd>The threshold to trigger translation, in million. The default threshold is 64 million.<dd>
+	<dt>-l &lt;floating-point number&gt;</dt><dd>The page size in thousand instructions. This parameter is the same as that of the static-compiled simulator.</dd>
+	<dt>-f &lt;file name&gt;</dt><dd>The configuration file name. A configuration file specifies the IP/port information of the translation servers. If this file is given, the simulator will distribute C++ compilation tasks to the translation servers. Otherwise, the simulator will perform C++ itself.</dd>
+	<dt>-c</dt><dd>To count the number of instructions during simulation. This has the same effect as that of the static-compiled simulator.</dd>
+	<dt>-m</dt><dd>To enable simulating self-modifying code.</dd>
+	<dt>-v</dt><dd>To turn on the verbose mode. This has the same effect as that of the static-compiled simulator.</dd>
+	<dt>-w</dt><dd>To turn on verbose communication between the simulator and the translation servers. This is useful only when -f is specified.</dd>
+	<dt>-h</dt><dd>To print the usage information and exit.</dd>
+</dl>
+<p class="main">
+Translation of code pages into dynamic libraries is performed by GCC.
+Due to the slow speed of GCC in compiling C++ code, 
+For small programs it may take <i>emips_jit</i> longer to simulate
+than <i>emips</i>. But for large programs, the translation overhead
+will be sufficiently absorbed and <i>emips_jit</i> will outperform
+<i>emips</i>.
+<p class="main">
+The dynamic-compiled simulator will create a folder <i>$HOME/.emips</i>
+to cache translation results. If a program has been simulated once, 
+subsequent simulation may be much faster because shared libraries
+in the cache can be directly loaded on simulation start.</p>
+<p class="main">
+The translation server program
+<i>emips_jit_server</i> has the following usage format.</p>
+<pre> emips_jit_server [-v] [-p portnum] [-h]</pre>
+<p class="main">The commandline options are listed below.</p>
+<dl>
+	<dt>-v</dt><dd>To turn on verbose mode. Will print all communication activities with the simulator.</dd>
+	<dt>-p &lt;port number&gt;</dt><dd>The socket port number. The translation server will listen on the port to await connections from the simulator.</dd>
+	<dt>-n</dt><dd>To turn off linking. This server will simply compile the C++ page and send the .o object code to the simulator. The simulator will do the linking to produce the .so shared library. This is useful when the server platform cannot generate compatible .so files.</dd>
+	<dt>-h</dt><dd>To print the usage message and exit.</dd>
+</dl>
+<p class="main">
+To perform dynamic-compiled simulation using multiple workstations, one need
+to first ensure that they can communicate with each other using UNIX socket.
+Firewalls may need to be partially turned off. Then the translation
+servers can be started first, followed by the simulator <i>emips_jit</i>.
+The -f option of <i>emips_jit</i> must be used to specify the
+address of the translation servers. The configuration file
+should one or more lines. Each line specifes the address of one
+translation server in the following format.</p>
+<pre>IP_address port_number</pre>
+<p class="main">
+More technical details of the dynamic-compiled simulator have been
+published in conference proceedings.
+See <a href="#rfn">References</a> for information.</p>
+
+<br><a href="#idx">BACK TO INDEX</a>
+</td></tr>
+
+<tr><td>
+<h2><a name="rfn"></a>Reference</h2>
+<ul>
+<li>
+W. Qin, J. D'Errico, X. Zhu,
+A Multiprocessing Approach to Accelerate Retargetable and 
+Portable Dynamic-compiled Instruction-set Simulation,
+International Conference on Hardware/Software Codesign and System Synthesis,
+November 2006</li>
+<br>
+<li>J. D'Errico, W. Qin,
+Constructing Portable Compiled Instruction-set Simulators &mdash; 
+An ADL-driven Approach,
+IEEE/ACM Design Automation and Test in Europe, March 2006.</i>
+</ul>
+<br><a href="#idx">BACK TO INDEX</a>
+</td></tr>
+
+<tr>
+<td>
+<p class="main">
+If you have further questions, please contact the authors at
+&#119;&#101;&#105;q&#105;n&#64;g&#109;&#97;i&#108;&#46;c&#111;&#109;
+or
+&#106;&#100;&#101;&#114;&#114;&#105;&#99;o3&#64;&#103;&#109;&#97;&#105;&#108;&#46;&#99;&#111;m. 
+Check out <A href="http://simit-arm.sourceforge.net">Simit-ARM</A> too!</p>
+<p class="nav">
+<a href="index.html#news">NEWS</a> | 
+<a href="index.html#about">ABOUT SimIt-MIPS</a> | 
+<a href="index.html#dl">DOWNLOAD</a> | 
+<a href="guide.html#idx">USER GUIDE</a></p>
+</td>
+</tr>
+</tbody>
+
 </table>
 </body>
 </html>

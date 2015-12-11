@@ -1,47 +1,4 @@
-MIPSIM 1.0 currently contains 
-a functional emulator for the MIPS architecture. 
-The emulator reads ELF32 little-endian mips-linux
-binaries and can simulate most of the SPEC Int and SPEC FP benchmarks.
-(For most benchmarks, code should be compiled with a soft floating point
-compiler.)
-
-MIPSIM includes:
-A built-in debugger.
-A count of instructions of each type.
-
-To install, untar the source by
-
-tar xzvf mipsim.tar.gz
-cd mipsim
-
-then, pick an installation director <prefix>. The default <prefix> is the build/
-directory under the current directory
-
-./configure --prefix=<prefix> ( or simply ./configure )
-make
-make install
-
-The <prefix>/bin directory will contain the binaries:
-  emips - MIPS instruction set emulator
-  emips_count - runs emips and returns instruction count
-  emips_safe - runs emips with memory access permission checks
-
-After installation, you can try to test the emulator by
-<prefix>/bin/emips test/wc configure
-
-Be sure to run the above command under the MIPSIM directory.
-
-On Cygwin platforms, you may have to try 
-CONFIG_SHELL=bash ./configure --prefix=<prefix>
-
-Advanced configuration flags:
---enable-mmap
-This will allow the emulator to use 4MB memory pages rather
-than 4KB memory ones. The result is a 20% speed up of emips.
-
-====================================================================
-The emulator utilizes some important infrastructure code from the
-PowerPC emulator by Gilles Mouchard (http://www.microlib.org).
+See document/index.html for more information.
 
 Please send your questions or comments to Wei Qin (wqin@bu.edu) or
 Joe D'Errico (jderrico3@gmail.com).

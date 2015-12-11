@@ -37,7 +37,8 @@ POST_UNINSTALL = :
 subdir = .
 DIST_COMMON = README $(am__configure_deps) $(include_HEADERS) \
 	$(srcdir)/Makefile.am $(srcdir)/Makefile.in \
-	$(srcdir)/config.h.in $(top_srcdir)/configure AUTHORS COPYING \
+	$(srcdir)/config.h.in $(top_srcdir)/configure \
+	$(top_srcdir)/jit/decomp_src/Makefile.in AUTHORS COPYING \
 	ChangeLog INSTALL NEWS depcomp install-sh missing
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/acinclude.m4 \
@@ -48,7 +49,7 @@ am__CONFIG_DISTCLEAN_FILES = config.status config.cache config.log \
  configure.lineno configure.status.lineno
 mkinstalldirs = $(mkdir_p)
 CONFIG_HEADER = config.h
-CONFIG_CLEAN_FILES =
+CONFIG_CLEAN_FILES = jit/decomp_src/Makefile
 SOURCES =
 DIST_SOURCES =
 RECURSIVE_TARGETS = all-recursive check-recursive dvi-recursive \
@@ -62,7 +63,7 @@ includeHEADERS_INSTALL = $(INSTALL_HEADER)
 HEADERS = $(include_HEADERS)
 ETAGS = etags
 CTAGS = ctags
-DIST_SUBDIRS = $(SUBDIRS)
+DIST_SUBDIRS = decgen emulator issgen jit
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
 distdir = $(PACKAGE)-$(VERSION)
 top_distdir = $(distdir)
@@ -97,6 +98,8 @@ ECHO_C = @ECHO_C@
 ECHO_N = @ECHO_N@
 ECHO_T = @ECHO_T@
 EGREP = @EGREP@
+ENABLE_JIT_FALSE = @ENABLE_JIT_FALSE@
+ENABLE_JIT_TRUE = @ENABLE_JIT_TRUE@
 EXEEXT = @EXEEXT@
 FP_OPTION = @FP_OPTION@
 INSTALL_DATA = @INSTALL_DATA@
@@ -157,16 +160,19 @@ sbindir = @sbindir@
 sharedstatedir = @sharedstatedir@
 sysconfdir = @sysconfdir@
 target_alias = @target_alias@
-SUBDIRS = decgen emulator
+@ENABLE_JIT_FALSE@JIT = 
+@ENABLE_JIT_TRUE@JIT = jit
+SUBDIRS = decgen emulator issgen $(JIT)
 include_HEADERS = config.h
 EXTRA_DIST = document/guide.html  document/index.html \
-	document/mipsimweb.css  document/mipsimweb_old.css \
+	document/mipsimweb.css  \
 	test/8q.c test/array.c test/cmp.c test/cq.c test/dag.c \
 	test/decl.c test/eight.c test/fact2.c test/fib.c test/fib_mem.c \
 	test/fields.c test/funcptr_test.c test/grep.c test/hyper.c test/ifthen.c \
 	test/incr.c test/init.c test/limits.c test/mm_int.c test/mod.c \
-	test/mysmc.c test/nested.c test/paranoia.c test/sort.c test/struct.c \
-	test/switch.c test/wc.c test/wf1.c test/Makefile
+	test/nested.c test/paranoia.c test/sort.c test/struct.c \
+	test/switch.c test/wc.c test/wf1.c test/Makefile \
+	issgen/mips.isa test/wc test/grep
 
 all: config.h
 	$(MAKE) $(AM_MAKEFLAGS) all-recursive
@@ -222,6 +228,8 @@ $(srcdir)/config.h.in:  $(am__configure_deps)
 
 distclean-hdr:
 	-rm -f config.h stamp-h1
+jit/decomp_src/Makefile: $(top_builddir)/config.status $(top_srcdir)/jit/decomp_src/Makefile.in
+	cd $(top_builddir) && $(SHELL) ./config.status $@
 uninstall-info-am:
 install-includeHEADERS: $(include_HEADERS)
 	@$(NORMAL_INSTALL)
@@ -360,7 +368,7 @@ distclean-tags:
 distdir: $(DISTFILES)
 	$(am__remove_distdir)
 	mkdir $(distdir)
-	$(mkdir_p) $(distdir)/document $(distdir)/test
+	$(mkdir_p) $(distdir)/document $(distdir)/issgen $(distdir)/jit $(distdir)/jit/decomp_src $(distdir)/test
 	@srcdirstrip=`echo "$(srcdir)" | sed 's|.|.|g'`; \
 	topsrcdirstrip=`echo "$(top_srcdir)" | sed 's|.|.|g'`; \
 	list='$(DISTFILES)'; for file in $$list; do \
@@ -387,7 +395,7 @@ distdir: $(DISTFILES)
 	    || exit 1; \
 	  fi; \
 	done
-	list='$(SUBDIRS)'; for subdir in $$list; do \
+	list='$(DIST_SUBDIRS)'; for subdir in $$list; do \
 	  if test "$$subdir" = .; then :; else \
 	    test -d "$(distdir)/$$subdir" \
 	    || mkdir "$(distdir)/$$subdir" \
@@ -602,6 +610,7 @@ uninstall-info: uninstall-info-recursive
 
 dist-hook:
 	$(top_srcdir)/prepend_license $(top_srcdir)/license_notice $(distdir) $(top_srcdir)/filelist
+	touch $(distdir)/issgen/parse_isa.cpp $(distdir)/issgen/scan_isa.cpp
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.
 .NOEXPORT:

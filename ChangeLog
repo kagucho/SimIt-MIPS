@@ -1,2 +1,9 @@
 
 10-10-2005, initial release 1.0a.
+
+10-1-2006, release 1.0.
++ interpreter supports GDB interface.
++ dynamic compiled simulation support.
++ multiprocessing support for dynamic compiled simulation.
++ simplifies memory emulator.
++ better documentation.
