@@ -1742,7 +1742,7 @@ part8(){
 	printf("\n");
 	printf("What message and/or values does Division by Zero produce?\n") ;
 #ifndef NOPAUSE
-	printf("This can interupt your program.  You can ");
+	printf("This can interrupt your program.  You can ");
 	printf("skip this part if you wish.\n");
 	printf("Do you wish to compute 1 / 0? ");
 	fflush(stdout);
